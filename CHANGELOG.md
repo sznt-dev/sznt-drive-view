@@ -8,6 +8,10 @@
   - cab inertia 0.7 → 0.3, head tilt in turns 3.0° → 2.0°
   - in a typical turn the head now moves about half as much relative to the cab.
 
+### Installer
+- New look, matching mods.sznt.dev (same fonts, colors, logo and illustrations).
+- Shorter, plainer wording in all four languages.
+
 ## 1.0.0-beta.1
 
 First public release.

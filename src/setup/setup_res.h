@@ -10,3 +10,5 @@
 #define IDR_VIEW_INI_ES  122
 #define IDR_VIEW_INI_DE  123
 #define IDI_APP          201
+#define IDR_FONT_FIRST   301
+#define IDR_FONT_COUNT   7

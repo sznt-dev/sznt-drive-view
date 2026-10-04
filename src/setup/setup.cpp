@@ -4,7 +4,7 @@
 #endif
 #include "installer.h"
 #include <d2d1.h>
-#include <dwrite.h>
+#include <dwrite_3.h>
 #include <dwmapi.h>
 #include <windowsx.h>
 #include <map>
@@ -19,7 +19,7 @@ using namespace inst;
 enum Page { P_LANG, P_MODS, P_GAMES, P_PROGRESS, P_DONE, P_UNINSTALL };
 enum Id {
     ID_NONE, ID_CLOSE, ID_MIN, ID_NEXT, ID_BACK, ID_INSTALL, ID_UNINSTALL, ID_FINISH, ID_LAUNCH, ID_ADMIN,
-    ID_TOGGLE_DRIVE, ID_TOGGLE_VIEW, ID_ADD_FOLDER, ID_UPDATE, ID_LINK_HOME, ID_LINK_REPO, ID_LINK_OTHER, ID_CONTINUE,
+    ID_TOGGLE_DRIVE, ID_TOGGLE_VIEW, ID_ADD_FOLDER, ID_UPDATE, ID_LINK_HOME, ID_LINK_OTHER, ID_CONTINUE,
     ID_LANG0 = 100, ID_GAME0 = 200,
 };
 
@@ -39,19 +39,37 @@ static std::wstring g_update;
 static float g_check_t = 0;
 
 static int g_dpi = 96;
-static const float W = 900, H = 600, LEFT = 280;
+static const float W = 900, H = 600, HEADER = 64, PAD = 48, FOOT_Y = 528;
+static const float CW = W - 2 * PAD;
 
 #define WM_APP_NOTE   (WM_APP + 1)
 #define WM_APP_DONE   (WM_APP + 2)
 #define WM_APP_UPDATE (WM_APP + 3)
 
-// ------------------------------------------------------------------ Direct2D
+// ------------------------------------------------------------------ brand
+namespace col {
+static const unsigned PAPER = 0xEDEBE6, CARD = 0xF8F7F3, WHITE_SOFT = 0xFCFBF9, INK = 0x111214, INK2 = 0x393A3E,
+                      MUTED = 0x6F6D67, FAINT = 0x9B988F, LINE = 0xD8D4CA, LINE2 = 0xC9C4B8, SIGNAL = 0xFF4D00,
+                      SIGNAL_INK = 0xB83700, COBALT = 0x2B59FF, COBALT_INK = 0x1A3FCC, ASPHALT = 0x16171A,
+                      OK = 0x138A4B, OK_DARK = 0x3DDC84, ERR = 0xD92D20;
+}
+static unsigned accent() { return SZNT_EDITION == 2 ? col::COBALT : col::SIGNAL; }
+static unsigned accent_ink() { return SZNT_EDITION == 2 ? col::COBALT_INK : col::SIGNAL_INK; }
+static unsigned mod_accent(bool drive) { return drive ? col::SIGNAL : col::COBALT; }
+
+// Wordmark SZNT (Archivo Expanded Black outlines) + the orange road-stripe signal.
+static const char *WORDMARK =
+    "M468 12Q379 12 302 1.5Q225 -9 167 -34.5Q109 -60 76 -105.5Q43 -151 43 -220Q43 -222 43 -225.5Q43 -229 44 -233H285Q284 -229 284 -225.5Q284 -222 284 -219Q284 -189 304 -173Q324 -157 360 -151.5Q396 -146 443 -146Q462 -146 482.5 -146.5Q503 -147 522.5 -149.5Q542 -152 557.5 -157Q573 -162 582.5 -170.5Q592 -179 592 -192Q592 -210 569.5 -220Q547 -230 508.5 -235.5Q470 -241 422.5 -246Q375 -251 324 -259Q273 -267 225.5 -281.5Q178 -296 139.5 -321Q101 -346 78.5 -385Q56 -424 56 -480Q56 -540 87.5 -582Q119 -624 173 -650Q227 -676 297 -688Q367 -700 443 -700Q521 -700 589.5 -688.5Q658 -677 710.5 -652Q763 -627 793 -586.5Q823 -546 823 -488V-476H584V-480Q584 -500 571 -515.5Q558 -531 529 -540.5Q500 -550 453 -550Q405 -550 373 -544Q341 -538 325.5 -527.5Q310 -517 310 -505Q310 -487 332.5 -477Q355 -467 393.5 -461.5Q432 -456 479.5 -451Q527 -446 578 -438.5Q629 -431 676.5 -417.5Q724 -404 762.5 -380Q801 -356 823.5 -319Q846 -282 846 -228Q846 -143 796.5 -90Q747 -37 661.5 -12.5Q576 12 468 12Z M906 0V-71L1305 -517H936V-688H1718V-617L1318 -171H1728V0Z M1833 0V-688H2048L2388 -401Q2394 -396 2405 -386Q2416 -376 2428 -365Q2440 -354 2450 -345H2460Q2460 -359 2460 -382.5Q2460 -406 2460 -428V-688H2692V0H2479L2156 -271Q2135 -288 2111.5 -309Q2088 -330 2074 -343H2065Q2065 -329 2065 -303.5Q2065 -278 2065 -252V0Z M3081 0V-499H2789V-688H3620V-499H3328V0Z";
+static const char *WORDMARK_SIGNAL = "M3735 -190 H3973 L3913 12 H3675 Z";
+
+// ------------------------------------------------------------------ Direct2D / DirectWrite
 static ID2D1Factory *g_d2d;
 static IDWriteFactory *g_dw;
+static IDWriteFontCollection *g_fonts;
+static bool g_brand_fonts = false;
 static ID2D1HwndRenderTarget *g_rt;
 static ID2D1SolidColorBrush *g_brush;
-static ID2D1StrokeStyle *g_round;
-static IDWriteTextFormat *f_display, *f_title, *f_h2, *f_body, *f_bodyb, *f_small, *f_tiny, *f_path, *f_key, *f_name;
+static ID2D1StrokeStyle *g_round, *g_dash;
 
 static D2D1_COLOR_F rgb(unsigned c, float a = 1.0f)
 {
@@ -60,12 +78,6 @@ static D2D1_COLOR_F rgb(unsigned c, float a = 1.0f)
 static D2D1_COLOR_F mix(D2D1_COLOR_F a, D2D1_COLOR_F b, float t)
 {
     return D2D1::ColorF(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, a.a + (b.a - a.a) * t);
-}
-
-namespace col {
-static const unsigned BG0 = 0x0C0E12, BG1 = 0x12151B, CARD = 0x191D24, CARD_HI = 0x1F242C, BORDER = 0x272C35,
-                      TEXT = 0xEDEFF3, MUTED = 0x8D94A0, FAINT = 0x596070, ACCENT = 0xF2A900, ACCENT_HI = 0xFFBE2E,
-                      INK = 0x14110A, OK = 0x3DDC84, WARN = 0xF2A900, ERR = 0xFF5D5D, SOFT = 0xC5CAD3;
 }
 
 static float g_opacity = 1;
@@ -87,76 +99,291 @@ static void stroke_round(D2D1_RECT_F r, float rad, D2D1_COLOR_F c, float w = 1)
     g_rt->DrawRoundedRectangle(D2D1::RoundedRect(in, rad, rad), brush(c), w);
 }
 
-static IDWriteTextFormat *make_format(const wchar_t *family, float size, DWRITE_FONT_WEIGHT weight)
+// ------------------------------------------------------------------ fonts
+enum Font { F_WIDE, F_DISPLAY, F_SANS, F_SANS_M, F_SANS_SB, F_MONO, F_MONO_SB, F_COUNT };
+
+static void load_brand_fonts()
 {
-    IDWriteTextFormat *f = nullptr;
-    g_dw->CreateTextFormat(family, nullptr, weight, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, size, L"", &f);
-    return f;
+    IDWriteFactory5 *f5 = nullptr;
+    if (FAILED(g_dw->QueryInterface(__uuidof(IDWriteFactory5), (void **)&f5)) || !f5) return;
+    IDWriteInMemoryFontFileLoader *loader = nullptr;
+    IDWriteFontSetBuilder1 *builder = nullptr;
+    if (SUCCEEDED(f5->CreateInMemoryFontFileLoader(&loader)) && SUCCEEDED(f5->RegisterFontFileLoader(loader)) &&
+        SUCCEEDED(f5->CreateFontSetBuilder(&builder))) {
+        int added = 0;
+        for (int i = 0; i < IDR_FONT_COUNT; i++) {
+            HRSRC r = FindResourceW(nullptr, MAKEINTRESOURCEW(IDR_FONT_FIRST + i), (LPCWSTR)RT_RCDATA);
+            HGLOBAL g = r ? LoadResource(nullptr, r) : nullptr;
+            const void *p = g ? LockResource(g) : nullptr;
+            IDWriteFontFile *file = nullptr;
+            if (p && SUCCEEDED(loader->CreateInMemoryFontFileReference(f5, p, SizeofResource(nullptr, r), nullptr, &file))) {
+                if (SUCCEEDED(builder->AddFontFile(file))) added++;
+                file->Release();
+            }
+        }
+        IDWriteFontSet *set = nullptr;
+        IDWriteFontCollection1 *coll = nullptr;
+        if (added == IDR_FONT_COUNT && SUCCEEDED(builder->CreateFontSet(&set)) && SUCCEEDED(f5->CreateFontCollectionFromFontSet(set, &coll))) {
+            g_fonts = coll;
+            g_brand_fonts = true;
+        }
+        if (set) set->Release();
+    }
+    if (builder) builder->Release();
+    f5->Release();
 }
 
-static bool font_exists(const wchar_t *family)
+static IDWriteTextFormat *format(Font f, float size)
 {
-    IDWriteFontCollection *fc = nullptr;
-    UINT32 idx; BOOL found = FALSE;
-    if (SUCCEEDED(g_dw->GetSystemFontCollection(&fc, FALSE)) && fc) { fc->FindFamilyName(family, &idx, &found); fc->Release(); }
-    return found;
+    static std::map<std::pair<int, int>, IDWriteTextFormat *> cache;
+    const auto key = std::make_pair((int)f, (int)(size * 10));
+    auto it = cache.find(key);
+    if (it != cache.end()) return it->second;
+    static const struct { const wchar_t *family, *fallback; DWRITE_FONT_WEIGHT weight; } spec[F_COUNT] = {
+        {L"SZNT Wide", L"Segoe UI Black", DWRITE_FONT_WEIGHT_BLACK},
+        {L"SZNT Display", L"Segoe UI", DWRITE_FONT_WEIGHT_EXTRA_BOLD},
+        {L"SZNT Sans", L"Segoe UI", DWRITE_FONT_WEIGHT_NORMAL},
+        {L"SZNT Sans", L"Segoe UI", DWRITE_FONT_WEIGHT_MEDIUM},
+        {L"SZNT Sans", L"Segoe UI", DWRITE_FONT_WEIGHT_SEMI_BOLD},
+        {L"SZNT Mono", L"Consolas", DWRITE_FONT_WEIGHT_MEDIUM},
+        {L"SZNT Mono", L"Consolas", DWRITE_FONT_WEIGHT_SEMI_BOLD},
+    };
+    IDWriteTextFormat *t = nullptr;
+    g_dw->CreateTextFormat(g_brand_fonts ? spec[f].family : spec[f].fallback, g_brand_fonts ? g_fonts : nullptr, spec[f].weight,
+                           DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, size, L"", &t);
+    cache[key] = t;
+    return t;
 }
 
-static void text(const std::wstring &s, IDWriteTextFormat *f, D2D1_RECT_F r, D2D1_COLOR_F c,
-                 DWRITE_TEXT_ALIGNMENT a = DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT p = DWRITE_PARAGRAPH_ALIGNMENT_NEAR)
+static std::wstring upper(std::wstring s)
 {
-    f->SetTextAlignment(a);
-    f->SetParagraphAlignment(p);
-    g_rt->DrawText(s.c_str(), (UINT32)s.size(), f, r, brush(c), D2D1_DRAW_TEXT_OPTIONS_NONE);
+    if (!s.empty()) CharUpperBuffW(&s[0], (DWORD)s.size());
+    return s;
 }
 
-static DWRITE_TEXT_METRICS measure(const std::wstring &s, IDWriteTextFormat *f, float width)
+struct TextOpt {
+    DWRITE_TEXT_ALIGNMENT align = DWRITE_TEXT_ALIGNMENT_LEADING;
+    DWRITE_PARAGRAPH_ALIGNMENT valign = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+    float track = 0;       // em
+    float leading = 0;     // multiple of the size, 0 = font default
+    bool nowrap = false, ellipsis = false;
+};
+
+static IDWriteTextLayout *layout(const std::wstring &s, Font f, float size, float w, float h, const TextOpt &o)
 {
     IDWriteTextLayout *l = nullptr;
+    if (FAILED(g_dw->CreateTextLayout(s.c_str(), (UINT32)s.size(), format(f, size), w, h, &l)) || !l) return nullptr;
+    l->SetTextAlignment(o.align);
+    l->SetParagraphAlignment(o.valign);
+    if (o.nowrap || o.ellipsis) l->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+    if (o.ellipsis) {
+        IDWriteInlineObject *sign = nullptr;
+        g_dw->CreateEllipsisTrimmingSign(format(f, size), &sign);
+        const DWRITE_TRIMMING trim = {DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0};
+        l->SetTrimming(&trim, sign);
+        if (sign) sign->Release();
+    }
+    if (o.leading > 0) l->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, size * o.leading, size * o.leading * 0.8f);
+    if (o.track != 0) {
+        IDWriteTextLayout1 *l1 = nullptr;
+        if (SUCCEEDED(l->QueryInterface(__uuidof(IDWriteTextLayout1), (void **)&l1)) && l1) {
+            l1->SetCharacterSpacing(0, o.track * size, 0, DWRITE_TEXT_RANGE{0, (UINT32)s.size()});
+            l1->Release();
+        }
+    }
+    return l;
+}
+
+static DWRITE_TEXT_METRICS text(const std::wstring &s, Font f, float size, D2D1_RECT_F r, D2D1_COLOR_F c, const TextOpt &o = TextOpt())
+{
     DWRITE_TEXT_METRICS m = {};
-    f->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-    if (SUCCEEDED(g_dw->CreateTextLayout(s.c_str(), (UINT32)s.size(), f, width, 4000, &l)) && l) { l->GetMetrics(&m); l->Release(); }
+    IDWriteTextLayout *l = layout(s, f, size, r.right - r.left, r.bottom - r.top, o);
+    if (!l) return m;
+    l->GetMetrics(&m);
+    g_rt->DrawTextLayout(P(r.left, r.top), l, brush(c), D2D1_DRAW_TEXT_OPTIONS_NONE);
+    l->Release();
     return m;
 }
-static float text_width(const std::wstring &s, IDWriteTextFormat *f) { return measure(s, f, 4000).widthIncludingTrailingWhitespace; }
-static float text_height(const std::wstring &s, IDWriteTextFormat *f, float width) { return measure(s, f, width).height; }
 
-static ID2D1PathGeometry *polyline(std::initializer_list<D2D1_POINT_2F> pts, bool closed)
+static DWRITE_TEXT_METRICS measure(const std::wstring &s, Font f, float size, float w, const TextOpt &o = TextOpt())
+{
+    DWRITE_TEXT_METRICS m = {};
+    IDWriteTextLayout *l = layout(s, f, size, w, 4000, o);
+    if (l) { l->GetMetrics(&m); l->Release(); }
+    return m;
+}
+
+static TextOpt mid(DWRITE_TEXT_ALIGNMENT a = DWRITE_TEXT_ALIGNMENT_LEADING)
+{
+    TextOpt o;
+    o.align = a;
+    o.valign = DWRITE_PARAGRAPH_ALIGNMENT_CENTER;
+    return o;
+}
+
+static TextOpt mono_opt(DWRITE_TEXT_ALIGNMENT a = DWRITE_TEXT_ALIGNMENT_LEADING)
+{
+    TextOpt o = mid(a);
+    o.track = 0.12f;
+    o.nowrap = true;
+    return o;
+}
+
+// ------------------------------------------------------------------ SVG paths (logo and icons)
+static ID2D1PathGeometry *svg_path(const char *d)
 {
     ID2D1PathGeometry *g = nullptr;
     ID2D1GeometrySink *s = nullptr;
     g_d2d->CreatePathGeometry(&g);
     g->Open(&s);
-    auto it = pts.begin();
-    s->BeginFigure(*it, closed ? D2D1_FIGURE_BEGIN_FILLED : D2D1_FIGURE_BEGIN_HOLLOW);
-    for (++it; it != pts.end(); ++it) s->AddLine(*it);
-    s->EndFigure(closed ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
+    s->SetFillMode(D2D1_FILL_MODE_WINDING);
+    float cx = 0, cy = 0, sx = 0, sy = 0, lx = 0, ly = 0;
+    char cmd = 0, prev = 0;
+    bool open = false;
+    const char *p = d;
+    auto skip = [&]() { while (*p == ' ' || *p == ',' || *p == '\n' || *p == '\t') p++; };
+    auto num = [&]() { skip(); char *e = nullptr; const float v = strtof(p, &e); p = e; return v; };
+    auto flag = [&]() { skip(); const bool v = *p == '1'; p++; return v; };
+    auto begin = [&](float x, float y) {
+        if (open) s->EndFigure(D2D1_FIGURE_END_OPEN);
+        s->BeginFigure(P(x, y), D2D1_FIGURE_BEGIN_FILLED);
+        open = true;
+        sx = x; sy = y;
+    };
+    while (true) {
+        skip();
+        if (!*p) break;
+        if (isalpha((unsigned char)*p)) cmd = *p++;
+        else if (cmd == 'M') cmd = 'L';
+        else if (cmd == 'm') cmd = 'l';
+        const bool rel = islower((unsigned char)cmd);
+        const float ox = rel ? cx : 0, oy = rel ? cy : 0;
+        switch (cmd) {
+        case 'M': case 'm': { const float x = ox + num(), y = oy + num(); begin(x, y); cx = x; cy = y; break; }
+        case 'L': case 'l': { cx = ox + num(); cy = oy + num(); s->AddLine(P(cx, cy)); break; }
+        case 'H': case 'h': { cx = ox + num(); s->AddLine(P(cx, cy)); break; }
+        case 'V': case 'v': { cy = oy + num(); s->AddLine(P(cx, cy)); break; }
+        case 'C': case 'c': {
+            const float x1 = ox + num(), y1 = oy + num(), x2 = ox + num(), y2 = oy + num(), x = ox + num(), y = oy + num();
+            s->AddBezier(D2D1::BezierSegment(P(x1, y1), P(x2, y2), P(x, y)));
+            lx = x2; ly = y2; cx = x; cy = y; break;
+        }
+        case 'S': case 's': {
+            const bool chain = prev == 'C' || prev == 'c' || prev == 'S' || prev == 's';
+            const float x1 = chain ? 2 * cx - lx : cx, y1 = chain ? 2 * cy - ly : cy;
+            const float x2 = ox + num(), y2 = oy + num(), x = ox + num(), y = oy + num();
+            s->AddBezier(D2D1::BezierSegment(P(x1, y1), P(x2, y2), P(x, y)));
+            lx = x2; ly = y2; cx = x; cy = y; break;
+        }
+        case 'Q': case 'q': {
+            const float x1 = ox + num(), y1 = oy + num(), x = ox + num(), y = oy + num();
+            s->AddQuadraticBezier(D2D1::QuadraticBezierSegment(P(x1, y1), P(x, y)));
+            lx = x1; ly = y1; cx = x; cy = y; break;
+        }
+        case 'T': case 't': {
+            const bool chain = prev == 'Q' || prev == 'q' || prev == 'T' || prev == 't';
+            const float x1 = chain ? 2 * cx - lx : cx, y1 = chain ? 2 * cy - ly : cy, x = ox + num(), y = oy + num();
+            s->AddQuadraticBezier(D2D1::QuadraticBezierSegment(P(x1, y1), P(x, y)));
+            lx = x1; ly = y1; cx = x; cy = y; break;
+        }
+        case 'A': case 'a': {
+            const float rx = num(), ry = num(), rot = num();
+            const bool large = flag(), sweep = flag();
+            const float x = ox + num(), y = oy + num();
+            s->AddArc(D2D1::ArcSegment(P(x, y), D2D1::SizeF(rx, ry), rot, sweep ? D2D1_SWEEP_DIRECTION_CLOCKWISE : D2D1_SWEEP_DIRECTION_COUNTER_CLOCKWISE,
+                                       large ? D2D1_ARC_SIZE_LARGE : D2D1_ARC_SIZE_SMALL));
+            cx = x; cy = y; break;
+        }
+        case 'Z': case 'z':
+            if (open) s->EndFigure(D2D1_FIGURE_END_CLOSED);
+            open = false;
+            cx = sx; cy = sy;
+            break;
+        default: p++; break;
+        }
+        prev = cmd;
+    }
+    if (open) s->EndFigure(D2D1_FIGURE_END_OPEN);
     s->Close();
     s->Release();
     return g;
 }
 
-static void stroke_lines(std::initializer_list<D2D1_POINT_2F> pts, D2D1_COLOR_F c, float w)
+static ID2D1PathGeometry *cached_path(const std::string &d)
 {
-    ID2D1PathGeometry *g = polyline(pts, false);
-    g_rt->DrawGeometry(g, brush(c), w, g_round);
-    g->Release();
+    static std::map<std::string, ID2D1PathGeometry *> cache;
+    auto it = cache.find(d);
+    if (it != cache.end()) return it->second;
+    return cache[d] = svg_path(d.c_str());
 }
 
-static void arc(float cx, float cy, float r, float a0, float a1, D2D1_COLOR_F c, float w)
+static std::string circ(float cx, float cy, float r)
 {
-    ID2D1PathGeometry *g = nullptr;
-    ID2D1GeometrySink *s = nullptr;
-    g_d2d->CreatePathGeometry(&g);
-    g->Open(&s);
-    s->BeginFigure(P(cx + r * cosf(a0), cy + r * sinf(a0)), D2D1_FIGURE_BEGIN_HOLLOW);
-    s->AddArc(D2D1::ArcSegment(P(cx + r * cosf(a1), cy + r * sinf(a1)), D2D1::SizeF(r, r), 0,
-                               D2D1_SWEEP_DIRECTION_CLOCKWISE, (a1 - a0) > 3.14159f ? D2D1_ARC_SIZE_LARGE : D2D1_ARC_SIZE_SMALL));
-    s->EndFigure(D2D1_FIGURE_END_OPEN);
-    s->Close();
-    s->Release();
-    g_rt->DrawGeometry(g, brush(c), w, g_round);
-    g->Release();
+    char b[160];
+    snprintf(b, sizeof(b), "M%g %ga%g %g 0 1 0 %g 0a%g %g 0 1 0 %g 0", cx - r, cy, r, r, 2 * r, r, r, -2 * r);
+    return b;
+}
+static std::string rrect(float x, float y, float w, float h, float rx)
+{
+    char b[260];
+    snprintf(b, sizeof(b), "M%g %gh%ga%g %g 0 0 1 %g %gv%ga%g %g 0 0 1 %g %gh%ga%g %g 0 0 1 %g %gv%ga%g %g 0 0 1 %g %gz",
+             x + rx, y, w - 2 * rx, rx, rx, rx, rx, h - 2 * rx, rx, rx, -rx, rx, -(w - 2 * rx), rx, rx, -rx, -rx, -(h - 2 * rx), rx, rx, rx, -rx);
+    return b;
+}
+static std::string quad(float x0, float y0, float x1, float y1, float x2, float y2, float x3, float y3)
+{
+    char b[200];
+    snprintf(b, sizeof(b), "M%g %gL%g %gL%g %gL%g %gZ", x0, y0, x1, y1, x2, y2, x3, y3);
+    return b;
+}
+
+// Same 24x24 line icons as the website (stroke 1.7, round caps).
+static std::string icon_path(const std::string &n)
+{
+    if (n == "wheel") return circ(12, 12, 9) + circ(12, 12, 2.5f) + "M12 14.5V21M9.6 11.2 3.4 9.5M14.4 11.2l6.2-1.7";
+    if (n == "pedal") return rrect(6, 3, 12, 18, 3) + "M9 8h6M9 12h6M9 16h6";
+    if (n == "weight") return std::string("M6 8h12l2 12H4L6 8Z") + circ(12, 5.5f, 2.5f);
+    if (n == "grip") return "M4 18c3-1 5-4 8-4s5 3 8 4M7 10l1.5-3M12 9V5.5M17 10l-1.5-3";
+    if (n == "mouse") return rrect(6.5f, 3, 11, 18, 5.5f) + "M12 7v3.5";
+    if (n == "zoom") return circ(11, 11, 6.5f) + "m20 20-4.2-4.2M11 8.5v5M8.5 11h5";
+    if (n == "horizon") return std::string("M2.5 13h19M5 9.5 19 16.5") + circ(12, 13, 2);
+    if (n == "body") return circ(12, 5, 2.5f) + "M8 21v-6l-2-4 6-2 6 2-2 4v6";
+    if (n == "check") return "m5 12.5 4.5 4.5L19 7.5";
+    if (n == "arrow") return "M5 12h14M13 6l6 6-6 6";
+    if (n == "arrow-left") return "M19 12H5M11 6l-6 6 6 6";
+    if (n == "x") return "M6 6l12 12M18 6 6 18";
+    if (n == "minus") return "M6 12h12";
+    if (n == "plus") return "M12 5v14M5 12h14";
+    if (n == "download") return "M12 4v11M7 10.5l5 5 5-5M4.5 19.5h15";
+    if (n == "truck") return "M2 6h11v10H2zM13 9h4.5L21 12.5V16h-8" + circ(6, 17.5f, 1.8f) + circ(17, 17.5f, 1.8f);
+    return "";
+}
+
+static void icon(const char *name, float x, float y, float size, D2D1_COLOR_F c, float stroke = 1.7f)
+{
+    ID2D1PathGeometry *g = cached_path(icon_path(name));
+    D2D1_MATRIX_3X2_F base;
+    g_rt->GetTransform(&base);
+    g_rt->SetTransform(D2D1::Matrix3x2F::Scale(size / 24, size / 24) * D2D1::Matrix3x2F::Translation(x, y) * base);
+    g_rt->DrawGeometry(g, brush(c), stroke, g_round);
+    g_rt->SetTransform(base);
+}
+
+static void fill_path(const std::string &d, const D2D1_MATRIX_3X2_F &m, D2D1_COLOR_F c)
+{
+    D2D1_MATRIX_3X2_F base;
+    g_rt->GetTransform(&base);
+    g_rt->SetTransform(m * base);
+    g_rt->FillGeometry(cached_path(d), brush(c));
+    g_rt->SetTransform(base);
+}
+
+static void logo(float x, float y, float h, D2D1_COLOR_F ink, D2D1_COLOR_F signal)
+{
+    const float s = h / 712.0f;
+    const D2D1_MATRIX_3X2_F m = D2D1::Matrix3x2F::Scale(s, s) * D2D1::Matrix3x2F::Translation(x - 43 * s, y + 700 * s);
+    fill_path(WORDMARK, m, ink);
+    fill_path(WORDMARK_SIGNAL, m, signal);
 }
 
 // ------------------------------------------------------------------ interaction
@@ -169,18 +396,188 @@ static float hover_of(int id) { auto it = g_anim.find(id); return it == g_anim.e
 static void hit(int id, D2D1_RECT_F r) { g_hits.push_back({id, r}); }
 static bool inside(D2D1_RECT_F r, float x, float y) { return x >= r.left && x < r.right && y >= r.top && y < r.bottom; }
 
-// ------------------------------------------------------------------ drawing
-static void draw_wheel(float cx, float cy, float s)
+// ------------------------------------------------------------------ components
+static void eyebrow(float x, float y, const std::wstring &s, unsigned c)
 {
-    const float R0 = s * 0.35f, ring = s * 0.075f, hub = s * 0.09f;
-    g_rt->DrawEllipse(D2D1::Ellipse(P(cx, cy), R0, R0), brush(col::TEXT), ring);
-    for (float a : {3.14159f, 0.0f, 1.5708f})
-        g_rt->DrawLine(P(cx + cosf(a) * hub * 0.6f, cy + sinf(a) * hub * 0.6f),
-                       P(cx + cosf(a) * (R0 - ring * 0.4f), cy + sinf(a) * (R0 - ring * 0.4f)), brush(col::TEXT), s * 0.062f, g_round);
-    arc(cx, cy, R0, 3.49f, 5.93f, rgb(col::ACCENT), ring);
-    g_rt->FillEllipse(D2D1::Ellipse(P(cx, cy), hub, hub), brush(col::ACCENT));
+    fill_path("M1.5 0H11L9.5 7H0Z", D2D1::Matrix3x2F::Translation(x, y + 4), rgb(c));
+    text(upper(s), F_MONO, 11.5f, R(x + 19, y - 2, 700, 18), rgb(c), mono_opt());
 }
 
+static float pill_width(const std::wstring &s, bool dot) { return measure(upper(s), F_MONO, 10.5f, 600, mono_opt()).widthIncludingTrailingWhitespace + (dot ? 34 : 22); }
+
+static float pill(float x, float y, const std::wstring &s, unsigned dot = 0, bool right_align = false)
+{
+    const std::wstring u = upper(s);
+    const float w = pill_width(s, dot != 0);
+    if (right_align) x -= w;
+    const D2D1_RECT_F r = R(x, y, w, 24);
+    fill_round(r, 12, rgb(col::WHITE_SOFT));
+    stroke_round(r, 12, rgb(col::LINE2));
+    if (dot) g_rt->FillEllipse(D2D1::Ellipse(P(x + 14, y + 12), 3, 3), brush(dot));
+    text(u, F_MONO, 10.5f, R(x + (dot ? 23 : 11), y, w, 24), rgb(col::INK2), mono_opt());
+    return w;
+}
+
+enum BtnStyle { BTN_INK, BTN_ACCENT, BTN_GHOST };
+
+static void button(int id, D2D1_RECT_F r, const std::wstring &label, BtnStyle st, const char *ic = "arrow", bool enabled = true, bool icon_left = false)
+{
+    const float h = enabled ? hover_of(id) : 0, a = enabled ? 1.f : 0.35f;
+    D2D1_RECT_F rr = r;
+    if (g_pressed == id && g_hover == id) { rr.top += 1; rr.bottom += 1; }
+    D2D1_COLOR_F fg = rgb(0xFFFFFF, a);
+    switch (st) {
+    case BTN_INK: fill_round(rr, 16, mix(rgb(col::INK, a), rgb(0x000000, a), h)); break;
+    case BTN_ACCENT: fill_round(rr, 16, mix(rgb(accent(), a), rgb(accent_ink(), a), h * 0.35f)); break;
+    case BTN_GHOST:
+        fill_round(rr, 16, rgb(col::INK, 0.05f * h));
+        stroke_round(rr, 16, rgb(col::LINE2, a));
+        fg = rgb(col::INK, a);
+        break;
+    }
+    const float iw = ic ? 18.f : 0.f, gap = ic ? 8.f : 0.f;
+    const float tw = measure(label, F_SANS_SB, 15, 600, mid()).widthIncludingTrailingWhitespace;
+    float x = (rr.left + rr.right - (tw + iw + gap)) / 2;
+    const float cy = (rr.top + rr.bottom) / 2;
+    if (ic && icon_left) { icon(ic, x - h * 2, cy - 9, 18, fg, 2); x += iw + gap; }
+    text(label, F_SANS_SB, 15, D2D1::RectF(x, rr.top, x + tw + 4, rr.bottom), fg, mid());
+    if (ic && !icon_left) icon(ic, x + tw + gap + h * 2, cy - 9, 18, fg, 2);
+    if (enabled) hit(id, r);
+}
+
+static void checkbox(float x, float y, bool on, float hover)
+{
+    const D2D1_RECT_F r = R(x, y, 22, 22);
+    if (on) {
+        fill_round(r, 7, rgb(col::INK));
+        icon("check", x + 2, y + 2, 18, rgb(0xFFFFFF), 2.4f);
+    } else {
+        fill_round(r, 7, rgb(col::WHITE_SOFT));
+        stroke_round(r, 7, mix(rgb(col::LINE2), rgb(col::INK2), hover * 0.6f), 1.5f);
+    }
+}
+
+static float keycap(float x, float y, const std::wstring &label, bool dark = false, unsigned fill = 0)
+{
+    const float w = label.size() > 1 ? measure(label, F_MONO_SB, 12, 400, mono_opt()).widthIncludingTrailingWhitespace + 18 : 32;
+    if (dark) {
+        fill_round(R(x, y, w, 32), 8, rgb(fill ? fill : 0x2A2C31));
+        text(label, F_MONO_SB, 13, R(x, y, w, 32), rgb(0xFFFFFF), mid(DWRITE_TEXT_ALIGNMENT_CENTER));
+        return w;
+    }
+    fill_round(R(x, y, w, 32), 9, rgb(col::LINE2));
+    fill_round(R(x, y, w, 29), 9, rgb(col::WHITE_SOFT));
+    stroke_round(R(x, y, w, 29), 9, rgb(col::LINE2));
+    TextOpt o = mid(DWRITE_TEXT_ALIGNMENT_CENTER);
+    o.track = 0.02f;
+    text(label, F_MONO_SB, 12, R(x, y, w, 29), rgb(col::INK), o);
+    return w;
+}
+
+static void feature(float x, float y, const char *ic, const std::wstring &label, unsigned c, float w)
+{
+    fill_round(R(x, y, 30, 30), 9, rgb(c));
+    icon(ic, x + 6, y + 6, 18, rgb(0xFFFFFF), 1.9f);
+    text(label, F_SANS_SB, 14, R(x + 42, y, w - 42, 30), rgb(col::INK), mid());
+}
+
+static void grid_lines(D2D1_RECT_F r, unsigned c, float a, float step)
+{
+    for (float x = r.left + step; x < r.right; x += step) g_rt->DrawLine(P(x, r.top), P(x, r.bottom), brush(c, a), 1);
+    for (float y = r.top + step; y < r.bottom; y += step) g_rt->DrawLine(P(r.left, y), P(r.right, y), brush(c, a), 1);
+}
+
+static void asphalt_panel(D2D1_RECT_F r)
+{
+    fill_round(r, 24, rgb(col::ASPHALT));
+    g_rt->PushAxisAlignedClip(D2D1::RectF(r.left + 10, r.top + 10, r.right - 10, r.bottom - 10), D2D1_ANTIALIAS_MODE_ALIASED);
+    grid_lines(r, 0xFFFFFF, 0.06f, 44);
+    g_rt->PopAxisAlignedClip();
+}
+
+static void stroke_open(std::initializer_list<D2D1_POINT_2F> bez, D2D1_COLOR_F c, float w, ID2D1StrokeStyle *st)
+{
+    // first point, then groups of three control points (cubic bezier)
+    ID2D1PathGeometry *g = nullptr;
+    ID2D1GeometrySink *s = nullptr;
+    g_d2d->CreatePathGeometry(&g);
+    g->Open(&s);
+    auto it = bez.begin();
+    s->BeginFigure(*it++, D2D1_FIGURE_BEGIN_HOLLOW);
+    while (it != bez.end()) {
+        const D2D1_POINT_2F a = *it++, b = *it++, e = *it++;
+        s->AddBezier(D2D1::BezierSegment(a, b, e));
+    }
+    s->EndFigure(D2D1_FIGURE_END_OPEN);
+    s->Close();
+    s->Release();
+    g_rt->DrawGeometry(g, brush(c), w, st);
+    g->Release();
+}
+
+// Website-style illustrations: steering wheel and pedal curve (Drive), windshield and gaze (View).
+static void art_drive(D2D1_RECT_F r)
+{
+    asphalt_panel(r);
+    const float w = r.right - r.left, h = r.bottom - r.top, cx = r.left + w * 0.44f, cy = r.top + h * 0.52f, rad = h * 0.3f;
+    g_rt->DrawEllipse(D2D1::Ellipse(P(cx, cy), rad, rad), brush(0x2C2E33), rad * 0.2f);
+    g_rt->FillEllipse(D2D1::Ellipse(P(cx, cy), rad * 0.26f, rad * 0.26f), brush(0x2C2E33));
+    for (float a : {3.3f, 6.12f, 1.5708f})
+        g_rt->DrawLine(P(cx + cosf(a) * rad * 0.2f, cy + sinf(a) * rad * 0.2f), P(cx + cosf(a) * rad, cy + sinf(a) * rad), brush(0x2C2E33), rad * 0.16f, g_round);
+    const float mx = cx - rad * 0.6f, my = cy - rad * 0.8f;
+    D2D1_MATRIX_3X2_F base;
+    g_rt->GetTransform(&base);
+    g_rt->SetTransform(D2D1::Matrix3x2F::Rotation(-36, P(mx, my)) * base);
+    fill_round(R(mx - 9, my - 13, 18, 26), 5, rgb(col::SIGNAL));
+    g_rt->SetTransform(base);
+    const D2D1_COLOR_F guide = rgb(0xFFFFFF, 0.28f);
+    const float x0 = r.left + 18, x1 = r.right - 18, y0 = r.bottom - h * 0.22f, y1 = r.top + h * 0.13f, ym = r.top + h * 0.43f;
+    g_rt->DrawLine(P(x0, y0), P(x0 + w * 0.3f, y0), brush(guide), 2, g_dash);
+    g_rt->DrawLine(P(cx - w * 0.06f, ym), P(cx - w * 0.06f, y0), brush(guide), 2, g_dash);
+    g_rt->DrawLine(P(cx - w * 0.06f, ym), P(cx + w * 0.2f, ym), brush(guide), 2, g_dash);
+    g_rt->DrawLine(P(cx + w * 0.2f, y1), P(x1, y1), brush(guide), 2, g_dash);
+    g_rt->DrawLine(P(cx + w * 0.2f, y1), P(cx + w * 0.2f, ym), brush(guide), 2, g_dash);
+    stroke_open({P(x0, y0), P(x0 + w * 0.22f, y0), P(cx - w * 0.16f, ym), P(cx + w * 0.04f, ym),
+                 P(cx + w * 0.24f, ym), P(x1 - w * 0.22f, y1), P(x1, y1)}, rgb(col::SIGNAL), 4, g_round);
+    const float kx = r.right - 138, ky = r.bottom - 96;
+    keycap(kx + 42, ky, L"W", true, col::SIGNAL);
+    keycap(kx, ky + 40, L"A", true);
+    keycap(kx + 42, ky + 40, L"S", true);
+    keycap(kx + 84, ky + 40, L"D", true, col::SIGNAL);
+}
+
+static void art_view(D2D1_RECT_F r)
+{
+    asphalt_panel(r);
+    const float w = r.right - r.left, h = r.bottom - r.top, cx = r.left + w / 2;
+    const float top = r.top + 18, horizon = r.top + h * 0.55f, bottom = r.bottom - h * 0.24f;
+    ID2D1PathGeometry *glass = cached_path(quad(r.left + w * 0.15f, top, r.right - w * 0.15f, top, r.right - w * 0.05f, bottom, r.left + w * 0.05f, bottom));
+    ID2D1Layer *layer = nullptr;
+    g_rt->CreateLayer(&layer);
+    g_rt->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), glass, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), g_opacity), layer);
+    const float keep = g_opacity;
+    g_opacity = 1;
+    g_rt->FillRectangle(D2D1::RectF(r.left, top, r.right, horizon), brush(0x9EB6D2));
+    g_rt->FillRectangle(D2D1::RectF(r.left, horizon, r.right, bottom), brush(0x8A9A6E));
+    g_rt->FillGeometry(cached_path(quad(cx - 4, horizon, cx + 4, horizon, cx + w * 0.13f, bottom, cx - w * 0.13f, bottom)), brush(0x4A4C52));
+    g_rt->DrawLine(P(cx, horizon + 6), P(cx, bottom), brush(0xFFFFFF, 0.85f), 2.5f, g_dash);
+    g_opacity = keep;
+    g_rt->PopLayer();
+    layer->Release();
+    const float gy = r.top + h * 0.37f, gr = h * 0.11f;
+    g_rt->DrawEllipse(D2D1::Ellipse(P(cx, gy), gr, gr), brush(col::COBALT), 2.5f);
+    g_rt->FillEllipse(D2D1::Ellipse(P(cx, gy), 3.5f, 3.5f), brush(col::COBALT));
+    g_rt->DrawLine(P(cx - gr - 18, gy), P(cx - gr - 6, gy), brush(col::COBALT), 2.5f, g_round);
+    g_rt->DrawLine(P(cx + gr + 6, gy), P(cx + gr + 18, gy), brush(col::COBALT), 2.5f, g_round);
+    g_rt->DrawLine(P(cx, gy - gr - 18), P(cx, gy - gr - 6), brush(col::COBALT), 2.5f, g_round);
+    g_rt->DrawLine(P(cx, gy + gr + 6), P(cx, gy + gr + 18), brush(col::COBALT), 2.5f, g_round);
+    stroke_open({P(cx - w * 0.22f, r.bottom - 20), P(cx - w * 0.1f, r.bottom - h * 0.13f), P(cx + w * 0.1f, r.bottom - h * 0.13f), P(cx + w * 0.22f, r.bottom - 20)},
+                rgb(col::COBALT), 3, g_dash);
+    fill_round(R(r.right - 64, r.bottom - 64, 30, 44), 15, rgb(0x2C2E33));
+    g_rt->DrawLine(P(r.right - 49, r.bottom - 56), P(r.right - 49, r.bottom - 46), brush(col::COBALT), 3, g_round);
+}
+
+// ------------------------------------------------------------------ flags
 static void flag_uk(D2D1_RECT_F r)
 {
     const float w = r.right - r.left, h = r.bottom - r.top;
@@ -200,23 +597,12 @@ static void flag_br(D2D1_RECT_F r)
 {
     const float w = r.right - r.left, h = r.bottom - r.top, cx = r.left + w / 2, cy = r.top + h / 2;
     g_rt->FillRectangle(r, brush(0x009C3B));
-    ID2D1PathGeometry *g = polyline({P(cx, r.top + h * 0.12f), P(r.right - w * 0.085f, cy), P(cx, r.bottom - h * 0.12f), P(r.left + w * 0.085f, cy)}, true);
-    g_rt->FillGeometry(g, brush(0xFEDF00));
-    g->Release();
+    g_rt->FillGeometry(cached_path(quad(cx, r.top + h * 0.12f, r.right - w * 0.085f, cy, cx, r.bottom - h * 0.12f, r.left + w * 0.085f, cy)), brush(0xFEDF00));
     const float rr = h * 0.25f;
     g_rt->FillEllipse(D2D1::Ellipse(P(cx, cy), rr, rr), brush(0x002776));
-    ID2D1PathGeometry *b = nullptr;
-    ID2D1GeometrySink *s = nullptr;
-    g_d2d->CreatePathGeometry(&b);
-    b->Open(&s);
-    s->BeginFigure(P(cx - rr * 0.97f, cy + rr * 0.1f), D2D1_FIGURE_BEGIN_HOLLOW);
-    s->AddArc(D2D1::ArcSegment(P(cx + rr * 0.95f, cy + rr * 0.25f), D2D1::SizeF(rr * 1.9f, rr * 1.9f), 0,
-                               D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
-    s->EndFigure(D2D1_FIGURE_END_OPEN);
-    s->Close();
-    s->Release();
-    g_rt->DrawGeometry(b, brush(0xFFFFFF), h * 0.045f);
-    b->Release();
+    char buf[160];
+    snprintf(buf, sizeof(buf), "M%g %gA%g %g 0 0 1 %g %g", cx - rr * 0.97f, cy + rr * 0.1f, rr * 1.9f, rr * 1.9f, cx + rr * 0.95f, cy + rr * 0.25f);
+    g_rt->DrawGeometry(cached_path(buf), brush(0xFFFFFF), h * 0.045f);
 }
 
 static void flag_es(D2D1_RECT_F r)
@@ -238,7 +624,7 @@ static void draw_flag(Lang l, D2D1_RECT_F r)
 {
     static void (*const fns[LANG_COUNT])(D2D1_RECT_F) = {flag_uk, flag_br, flag_es, flag_de};
     ID2D1RoundedRectangleGeometry *g = nullptr;
-    g_d2d->CreateRoundedRectangleGeometry(D2D1::RoundedRect(r, 6, 6), &g);
+    g_d2d->CreateRoundedRectangleGeometry(D2D1::RoundedRect(r, 7, 7), &g);
     ID2D1Layer *layer = nullptr;
     g_rt->CreateLayer(&layer);
     g_rt->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), g, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE, D2D1::IdentityMatrix(), g_opacity), layer);
@@ -249,95 +635,19 @@ static void draw_flag(Lang l, D2D1_RECT_F r)
     g_rt->PopLayer();
     layer->Release();
     g->Release();
-    stroke_round(r, 6, rgb(0xFFFFFF, 0.14f));
-}
-
-enum BtnStyle { BTN_PRIMARY, BTN_SECONDARY, BTN_DANGER, BTN_GHOST };
-
-static void button(int id, D2D1_RECT_F r, const std::wstring &label, BtnStyle st, bool enabled = true)
-{
-    const float h = enabled ? hover_of(id) : 0, a = enabled ? 1.f : 0.4f;
-    D2D1_RECT_F rr = r;
-    if (g_pressed == id && g_hover == id) { rr.top += 1; rr.bottom += 1; }
-    const DWRITE_TEXT_ALIGNMENT center = DWRITE_TEXT_ALIGNMENT_CENTER;
-    const DWRITE_PARAGRAPH_ALIGNMENT mid = DWRITE_PARAGRAPH_ALIGNMENT_CENTER;
-    switch (st) {
-    case BTN_PRIMARY:
-        fill_round(rr, 10, mix(rgb(col::ACCENT, a), rgb(col::ACCENT_HI, a), h));
-        text(label, f_bodyb, rr, rgb(col::INK, a), center, mid);
-        break;
-    case BTN_DANGER:
-        fill_round(rr, 10, mix(rgb(0xE5484D, a), rgb(0xFF6369, a), h));
-        text(label, f_bodyb, rr, rgb(0xFFFFFF, a), center, mid);
-        break;
-    case BTN_SECONDARY:
-        fill_round(rr, 10, mix(rgb(col::CARD, a), rgb(col::CARD_HI, a), h));
-        stroke_round(rr, 10, mix(rgb(col::BORDER, a), rgb(0x3A414D, a), h));
-        text(label, f_bodyb, rr, rgb(col::TEXT, a), center, mid);
-        break;
-    case BTN_GHOST:
-        text(label, f_bodyb, rr, mix(rgb(col::ACCENT, a), rgb(col::ACCENT_HI, a), h), DWRITE_TEXT_ALIGNMENT_LEADING, mid);
-        break;
-    }
-    if (enabled) hit(id, r);
-}
-
-static void toggle(int id, float x, float y)
-{
-    const float t = hover_of(id + 1000);
-    fill_round(R(x, y, 44, 24), 12, mix(rgb(0x2B313B), rgb(col::ACCENT), t));
-    g_rt->FillEllipse(D2D1::Ellipse(P(x + 12 + t * 20, y + 12), 9, 9), brush(mix(rgb(col::TEXT), rgb(col::INK), t)));
-    hit(id, R(x - 6, y - 6, 56, 36));
-}
-
-static void checkbox(float x, float y, bool on, float hover)
-{
-    const D2D1_RECT_F r = R(x, y, 22, 22);
-    if (on) {
-        fill_round(r, 6, rgb(col::ACCENT));
-        stroke_lines({P(x + 5.5f, y + 11.5f), P(x + 9.5f, y + 15.5f), P(x + 16.5f, y + 7)}, rgb(col::INK), 2.4f);
-    } else {
-        stroke_round(r, 6, mix(rgb(0x3A414D), rgb(col::ACCENT), hover * 0.6f), 1.6f);
-    }
-}
-
-static void chip(float right, float cy, const std::wstring &s, unsigned c)
-{
-    const float w = text_width(s, f_small) + 22;
-    const D2D1_RECT_F r = R(right - w, cy - 12, w, 24);
-    fill_round(r, 12, rgb(c, 0.13f));
-    text(s, f_small, r, rgb(c), DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-}
-
-static float keycap(float x, float y, const std::wstring &label)
-{
-    const float w = label.size() > 1 ? text_width(label, f_key) + 22 : 32;
-    fill_round(R(x, y + 2, w, 30), 7, rgb(0x08090C));
-    fill_round(R(x, y, w, 30), 7, rgb(0x262B34));
-    stroke_round(R(x, y, w, 30), 7, rgb(0x363C47));
-    text(label, f_key, R(x, y, w, 30), rgb(col::TEXT), DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-    return w;
-}
-
-static float bullet(float x, float y, float w, const std::wstring &s)
-{
-    g_rt->FillEllipse(D2D1::Ellipse(P(x + 3, y + 9), 3, 3), brush(col::ACCENT));
-    const float h = text_height(s, f_small, w - 16);
-    text(s, f_small, R(x + 16, y, w - 16, h + 2), rgb(col::SOFT));
-    return h;
+    stroke_round(r, 7, rgb(col::INK, 0.12f));
 }
 
 // ------------------------------------------------------------------ pages
-static float content_x() { return LEFT + 48; }
-static float content_w() { return W - LEFT - 96; }
-static const float BTN_Y = H - 84;
-
-static void heading(const Str &title, const Str &sub, float y = 84)
+static void title(float y, const std::wstring &s, float size = 44)
 {
-    const float x = content_x(), w = content_w();
-    text(tr(title), f_display, R(x, y, w, 46), rgb(col::TEXT));
-    text(tr(sub), f_body, R(x, y + 50, w, 44), rgb(col::MUTED));
+    TextOpt o;
+    o.track = -0.03f;
+    o.leading = 1.02f;
+    text(s, F_DISPLAY, size, R(PAD, y, CW, size * 2.4f), rgb(col::INK), o);
 }
+
+static void subtitle(float y, const std::wstring &s) { text(s, F_SANS, 15.5f, R(PAD, y, CW * 0.8f, 48), rgb(col::MUTED)); }
 
 static std::wstring status_text(size_t i, unsigned &c)
 {
@@ -346,78 +656,93 @@ static std::wstring status_text(size_t i, unsigned &c)
     std::wstring v;
     if (HAS_DRIVE && HAS_VIEW && !s.drive.empty() && s.drive == s.view) v = s.drive;
     else if (HAS_DRIVE && !s.drive.empty()) v = L"Drive " + s.drive;
-    if (HAS_VIEW && !s.view.empty() && v != s.view) v += (v.empty() ? L"" : L"  ·  ") + std::wstring(L"View ") + s.view;
-    if (!v.empty()) { c = col::OK; return std::wstring(tr(txt::st_installed)) + L"  " + v; }
-    if (s.legacy) { c = col::WARN; return tr(txt::st_old); }
+    if (HAS_VIEW && !s.view.empty() && v != s.view) v += (v.empty() ? L"" : L" · ") + std::wstring(L"View ") + s.view;
+    if (!v.empty()) { c = col::OK; return std::wstring(tr(txt::st_installed)) + L" · " + v; }
+    if (s.legacy) { c = accent(); return tr(txt::st_old); }
     c = col::FAINT;
     return tr(txt::st_not_installed);
 }
 
 static void page_lang()
 {
-    const float x = content_x(), w = content_w();
-    heading(txt::choose_lang, txt::choose_lang_sub, 96);
-    const float cw = (w - 16) / 2, ch = 96;
+    eyebrow(PAD, 96, std::wstring(tr(txt::installer)) + L" · " + EDITION_NAME, accent_ink());
+    title(120, tr(txt::choose_lang));
+    const float cw = (CW - 16) / 2, ch = 96;
     for (int i = 0; i < LANG_COUNT; i++) {
-        const float cx = x + (i % 2) * (cw + 16), cy = 214 + (i / 2) * (ch + 16);
-        const D2D1_RECT_F r = R(cx, cy, cw, ch);
+        const float x = PAD + (i % 2) * (cw + 16), y = 214 + (i / 2) * (ch + 16);
+        const D2D1_RECT_F r = R(x, y, cw, ch);
         const float h = hover_of(ID_LANG0 + i);
         const bool cur = g_lang == (Lang)i;
-        fill_round(r, 16, mix(rgb(col::CARD), rgb(col::CARD_HI), h));
-        stroke_round(r, 16, cur ? rgb(col::ACCENT) : mix(rgb(col::BORDER), rgb(0x3A414D), h), cur ? 1.6f : 1.0f);
-        draw_flag((Lang)i, R(cx + 24, cy + (ch - 40) / 2, 60, 40));
-        text(tr(txt::lang_name[i]), f_h2, R(cx + 104, cy, cw - 140, ch), rgb(col::TEXT), DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-        text(L"›", f_title, R(cx, cy, cw - 22, ch - 4), mix(rgb(col::FAINT), rgb(col::ACCENT), h), DWRITE_TEXT_ALIGNMENT_TRAILING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+        fill_round(r, 20, mix(rgb(col::CARD), rgb(col::WHITE_SOFT), h));
+        stroke_round(r, 20, cur ? rgb(col::INK) : mix(rgb(col::LINE), rgb(col::LINE2), h), cur ? 1.5f : 1.0f);
+        draw_flag((Lang)i, R(x + 24, y + (ch - 40) / 2, 60, 40));
+        text(tr(txt::lang_name[i]), F_SANS_SB, 18, R(x + 104, y, cw - 160, ch), rgb(col::INK), mid());
+        icon("arrow", r.right - 46 + h * 3, y + ch / 2 - 10, 20, mix(rgb(col::FAINT), rgb(col::INK), h), 1.9f);
         hit(ID_LANG0 + i, r);
     }
 }
 
-static void mod_card(D2D1_RECT_F r, bool drive, bool with_toggle)
+static const char *const DRIVE_ICONS[4] = {"wheel", "pedal", "weight", "grip"};
+static const char *const VIEW_ICONS[4] = {"mouse", "zoom", "horizon", "body"};
+
+static void mod_choice(D2D1_RECT_F r, bool drive, int id)
 {
     const bool on = drive ? g_want_drive : g_want_view;
-    fill_round(r, 16, rgb(col::CARD));
-    stroke_round(r, 16, on ? rgb(col::ACCENT, 0.55f) : rgb(col::BORDER), on ? 1.4f : 1.0f);
-    const float x = r.left + 22, w = r.right - r.left - 44;
-    text(drive ? L"SZNT Drive" : L"SZNT View", f_title, R(x, r.top + 20, w, 30), rgb(col::TEXT));
-    const float tag_w = w - (with_toggle ? 56 : 0);
-    const float th = text_height(tr(drive ? txt::drive_tag : txt::view_tag), f_small, tag_w);
-    text(tr(drive ? txt::drive_tag : txt::view_tag), f_small, R(x, r.top + 54, tag_w, th + 2), rgb(col::ACCENT));
-    float y = r.top + 66 + th;
-    g_rt->FillRectangle(R(x, y, w, 1), brush(col::BORDER));
-    y += 14;
-    const Str *b[3] = {drive ? &txt::drive_b1 : &txt::view_b1, drive ? &txt::drive_b2 : &txt::view_b2, drive ? &txt::drive_b3 : &txt::view_b3};
-    for (auto *s : b) y += bullet(x, y, w, tr(*s)) + 10;
-    if (with_toggle) toggle(drive ? ID_TOGGLE_DRIVE : ID_TOGGLE_VIEW, r.right - 66, r.top + 24);
+    const float h = hover_of(id);
+    fill_round(r, 24, mix(rgb(col::CARD), rgb(col::WHITE_SOFT), h));
+    stroke_round(r, 24, on ? rgb(col::INK) : mix(rgb(col::LINE), rgb(col::LINE2), h), on ? 1.5f : 1.0f);
+    const float x = r.left + 26, w = r.right - r.left - 52;
+    const float keep = g_opacity;
+    g_opacity *= on ? 1.f : 0.45f;
+    TextOpt o;
+    o.track = -0.01f;
+    o.nowrap = true;
+    text(L"SZNT", F_WIDE, 14, R(x, r.top + 22, 200, 20), rgb(col::INK2), o);
+    text(drive ? L"DRIVE" : L"VIEW", F_WIDE, 40, R(x, r.top + 36, w, 50), rgb(mod_accent(drive)), o);
+    text(tr(drive ? txt::drive_tag : txt::view_tag), F_SANS, 14, R(x, r.top + 88, w, 40), rgb(col::INK2));
+    g_rt->FillRectangle(R(x, r.top + 124, w, 1), brush(col::LINE));
+    for (int i = 0; i < 4; i++) feature(x, r.top + 138 + i * 36, drive ? DRIVE_ICONS[i] : VIEW_ICONS[i], tr(drive ? txt::drive_f[i] : txt::view_f[i]), mod_accent(drive), w);
+    g_opacity = keep;
+    checkbox(r.right - 48, r.top + 26, on, h);
+    hit(id, r);
 }
 
 static void page_mods()
 {
-    const float x = content_x(), w = content_w();
-    text(tr(txt::hero_title), f_display, R(x, 84, w, 46), rgb(col::TEXT));
-    const float sh = text_height(tr(txt::hero_sub), f_body, w);
-    text(tr(txt::hero_sub), f_body, R(x, 134, w, sh + 4), rgb(col::MUTED));
-    const float top = 154 + sh;
     if (SZNT_EDITION == 0) {
-        const float cw = (w - 16) / 2;
-        mod_card(R(x, top, cw, BTN_Y - top - 24), true, true);
-        mod_card(R(x + cw + 16, top, cw, BTN_Y - top - 24), false, true);
-    } else {
-        const bool drive = SZNT_EDITION == 1;
-        mod_card(R(x, top, w, 220), drive, false);
-        const D2D1_RECT_F r = R(x, top + 234, w, 56);
-        const float h = hover_of(ID_LINK_OTHER);
-        fill_round(r, 14, mix(rgb(col::BG1), rgb(col::CARD), 0.5f + h * 0.5f));
-        stroke_round(r, 14, rgb(col::BORDER));
-        const std::wstring other = drive ? L"SZNT View" : L"SZNT Drive";
-        text(std::wstring(tr(txt::also_available)) + L":  ", f_small, R(r.left + 18, r.top, 400, 56), rgb(col::MUTED), DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-        const float lw = text_width(std::wstring(tr(txt::also_available)) + L":  ", f_small);
-        text(other, f_bodyb, R(r.left + 18 + lw, r.top, 200, 56), rgb(col::TEXT), DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-        text(std::wstring(tr(txt::get_it)) + L"  ›", f_small, R(r.left, r.top, w - 18, 56), mix(rgb(col::ACCENT), rgb(col::ACCENT_HI), h),
-             DWRITE_TEXT_ALIGNMENT_TRAILING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-        hit(ID_LINK_OTHER, r);
+        eyebrow(PAD, 96, tr(txt::step_mods), accent_ink());
+        title(120, tr(txt::mods_title), 40);
+        subtitle(168, tr(txt::mods_sub));
+        const float cw = (CW - 16) / 2, top = 202;
+        mod_choice(R(PAD, top, cw, FOOT_Y - top - 18), true, ID_TOGGLE_DRIVE);
+        mod_choice(R(PAD + cw + 16, top, cw, FOOT_Y - top - 18), false, ID_TOGGLE_VIEW);
+        return;
     }
-    button(ID_BACK, R(x, BTN_Y, 120, 44), tr(txt::btn_back), BTN_SECONDARY);
-    button(ID_NEXT, R(x + w - 160, BTN_Y, 160, 44), tr(txt::btn_next), BTN_PRIMARY, g_want_drive || g_want_view);
+    const bool drive = SZNT_EDITION == 1;
+    float px = PAD;
+    px += pill(px, 92, std::wstring(L"Beta · v") + widen(SZNT_VERSION), accent()) + 8;
+    pill(px, 92, L"ETS2 · ATS");
+    TextOpt o;
+    o.track = -0.01f;
+    o.nowrap = true;
+    text(L"SZNT", F_WIDE, 24, R(PAD, 134, 300, 30), rgb(col::INK2), o);
+    o.leading = 0.92f;
+    text(drive ? L"DRIVE" : L"VIEW", F_WIDE, 92, R(PAD - 4, 156, 460, 100), rgb(accent()), o);
+    TextOpt t;
+    t.track = -0.025f;
+    t.leading = 1.05f;
+    text(tr(drive ? txt::drive_tag : txt::view_tag), F_DISPLAY, 24, R(PAD, 262, 400, 64), rgb(col::INK), t);
+    for (int i = 0; i < 4; i++)
+        feature(PAD + (i % 2) * 206, 350 + (i / 2) * 46, drive ? DRIVE_ICONS[i] : VIEW_ICONS[i], tr(drive ? txt::drive_f[i] : txt::view_f[i]), accent(), 200);
+    const D2D1_RECT_F art = R(PAD + 440, 92, CW - 440, 362);
+    if (drive) art_drive(art); else art_view(art);
+    const float h = hover_of(ID_LINK_OTHER);
+    const std::wstring other = std::wstring(tr(txt::also)) + L" " + (drive ? L"SZNT View" : L"SZNT Drive");
+    const float tw = measure(other, F_SANS_M, 13.5f, 600, mid()).widthIncludingTrailingWhitespace;
+    g_rt->FillEllipse(D2D1::Ellipse(P(PAD + 5, 480), 4, 4), brush(drive ? col::COBALT : col::SIGNAL));
+    text(other, F_SANS_M, 13.5f, R(PAD + 18, 470, tw + 4, 20), mix(rgb(col::INK2), rgb(col::INK), h), mid());
+    icon("arrow", PAD + 24 + tw + h * 2, 471, 17, mix(rgb(col::INK2), rgb(col::INK), h), 2);
+    hit(ID_LINK_OTHER, R(PAD, 466, tw + 48, 28));
 }
 
 static bool any_selected()
@@ -433,106 +758,98 @@ static bool any_selected_installed()
     return false;
 }
 
-static void game_list(float x, float y, float w)
+static void game_list(float y)
 {
     if (g_games.empty()) {
-        fill_round(R(x, y, w, 64), 14, rgb(col::CARD));
-        stroke_round(R(x, y, w, 64), 14, rgb(col::BORDER));
-        text(tr(txt::no_games), f_body, R(x + 20, y, w - 40, 64), rgb(col::MUTED), DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-        y += 76;
+        fill_round(R(PAD, y, CW, 72), 20, rgb(col::CARD));
+        stroke_round(R(PAD, y, CW, 72), 20, rgb(col::LINE));
+        icon("truck", PAD + 22, y + 24, 24, rgb(col::MUTED));
+        text(tr(txt::no_games), F_SANS, 15, R(PAD + 60, y, CW - 80, 72), rgb(col::INK2), mid());
+        y += 84;
     }
-    for (size_t i = 0; i < g_games.size() && i < 4; i++) {
-        const D2D1_RECT_F r = R(x, y, w, 70);
+    for (size_t i = 0; i < g_games.size() && i < 3; i++) {
+        const D2D1_RECT_F r = R(PAD, y, CW, 72);
         const float h = hover_of(ID_GAME0 + (int)i);
-        fill_round(r, 14, mix(rgb(col::CARD), rgb(col::CARD_HI), h));
-        stroke_round(r, 14, g_games[i].selected ? rgb(col::ACCENT, 0.45f) : rgb(col::BORDER));
-        checkbox(x + 20, y + 24, g_games[i].selected, h);
+        fill_round(r, 20, mix(rgb(col::CARD), rgb(col::WHITE_SOFT), h));
+        stroke_round(r, 20, g_games[i].selected ? rgb(col::INK) : mix(rgb(col::LINE), rgb(col::LINE2), h), g_games[i].selected ? 1.5f : 1.f);
+        checkbox(PAD + 22, y + 25, g_games[i].selected, h);
         unsigned c;
         const std::wstring st = status_text(i, c);
-        const float chip_w = text_width(st, f_small) + 22;
-        text(g_games[i].name, f_name, R(x + 58, y + 14, w - chip_w - 90, 24), rgb(col::TEXT));
-        text(g_games[i].root, f_path, R(x + 58, y + 38, w - chip_w - 90, 20), rgb(col::FAINT));
-        chip(r.right - 18, y + 35, st, c);
+        const float chip = pill_width(st, true);
+        TextOpt e;
+        e.ellipsis = true;
+        text(g_games[i].name, F_SANS_SB, 16, R(PAD + 62, y + 15, CW - chip - 100, 22), rgb(col::INK), e);
+        e.track = 0.02f;
+        text(g_games[i].root, F_MONO, 11, R(PAD + 62, y + 41, CW - chip - 100, 18), rgb(col::MUTED), e);
+        pill(r.right - 20, y + 24, st, c, true);
         hit(ID_GAME0 + (int)i, r);
-        y += 82;
+        y += 84;
     }
-    button(ID_ADD_FOLDER, R(x + 4, y, 280, 30), tr(txt::add_folder), BTN_GHOST);
+    const float h = hover_of(ID_ADD_FOLDER);
+    icon("plus", PAD + 2, y + 6, 18, mix(rgb(col::INK2), rgb(col::INK), h), 2);
+    const std::wstring s = tr(txt::add_folder);
+    const float tw = measure(s, F_SANS_SB, 14, 600, mid()).widthIncludingTrailingWhitespace;
+    text(s, F_SANS_SB, 14, R(PAD + 28, y, tw + 4, 30), mix(rgb(col::INK2), rgb(col::INK), h), mid());
+    hit(ID_ADD_FOLDER, R(PAD, y, tw + 40, 30));
 }
 
 static void page_games()
 {
-    const float x = content_x(), w = content_w();
-    heading(txt::games_title, txt::games_sub);
-    game_list(x, 190, w);
-    button(ID_BACK, R(x, BTN_Y, 120, 44), tr(txt::btn_back), BTN_SECONDARY);
-    button(ID_INSTALL, R(x + w - 180, BTN_Y, 180, 44), tr(any_selected_installed() ? txt::btn_update : txt::btn_install), BTN_PRIMARY, any_selected());
+    eyebrow(PAD, 96, tr(txt::step_games), accent_ink());
+    title(120, tr(txt::games_title), 40);
+    subtitle(168, tr(txt::games_sub));
+    game_list(212);
 }
 
 static float now_s() { return (float)(GetTickCount64() % 1000000) / 1000.0f; }
 
-static void spinner(float cx, float cy, float r)
+static void road_stripe(D2D1_RECT_F r, bool moving, unsigned c)
 {
-    g_rt->DrawEllipse(D2D1::Ellipse(P(cx, cy), r, r), brush(0x2B313B), 3);
-    const float a = now_s() * 5.5f;
-    arc(cx, cy, r, a, a + 1.6f, rgb(col::ACCENT), 3);
-}
-
-static void note_icon(NoteKind k, float x, float y)
-{
-    if (k == NOTE_OK) stroke_lines({P(x + 2, y + 9), P(x + 6, y + 13), P(x + 13, y + 4)}, rgb(col::OK), 2.2f);
-    else if (k == NOTE_WARN || k == NOTE_ERROR) {
-        const unsigned c = k == NOTE_WARN ? col::WARN : col::ERR;
-        g_rt->FillEllipse(D2D1::Ellipse(P(x + 7.5f, y + 8.5f), 8, 8), brush(c, 0.18f));
-        text(L"!", f_key, R(x - 1, y, 17, 17), rgb(c), DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-    } else g_rt->FillEllipse(D2D1::Ellipse(P(x + 7.5f, y + 8.5f), 2.5f, 2.5f), brush(col::FAINT));
+    fill_round(r, 3, rgb(col::LINE));
+    g_rt->PushAxisAlignedClip(r, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+    const float off = moving ? fmodf(now_s() * 90.0f, 48.0f) : 0, sy = (r.bottom - r.top) / 6;
+    for (float x = r.left - 48 + off; x < r.right; x += 48)
+        fill_path("M3 0H31L28 6H0Z", D2D1::Matrix3x2F::Scale(1, sy) * D2D1::Matrix3x2F::Translation(x, r.top), rgb(c));
+    g_rt->PopAxisAlignedClip();
 }
 
 static void page_progress()
 {
-    const float x = content_x(), w = content_w();
     const bool warn = g_finished && !g_result.ok;
-    std::wstring title = g_busy ? tr(g_uninstall_mode ? txt::removing : txt::installing) : tr(warn ? txt::done_warn_title : txt::done_title);
-    if (g_finished && g_result.need_admin) title = tr(txt::admin_needed);
-    if (g_busy) spinner(x + 14, 108, 12);
-    text(title, f_display, R(x + (g_busy ? 42 : 0), 84, w - 42, 46), rgb(col::TEXT));
+    std::wstring t = g_busy ? std::wstring(tr(g_uninstall_mode ? txt::removing : txt::installing)) : tr(warn ? txt::done_warn_title : txt::done_title);
+    if (g_finished && g_result.need_admin) t = tr(txt::admin_needed);
+    if (g_busy) t += std::wstring(L"...").substr(0, 1 + ((int)(now_s() * 2.5f) % 3));
+    eyebrow(PAD, 96, tr(g_uninstall_mode ? txt::uninstall_title : txt::step_install), accent_ink());
+    title(120, t, 40);
+    road_stripe(R(PAD, 178, CW, 6), g_busy, g_finished ? (warn ? col::SIGNAL : col::OK) : accent());
 
-    const D2D1_RECT_F bar = R(x, 148, w, 6);
-    fill_round(bar, 3, rgb(0x232831));
-    if (g_busy) {
-        const float t = fmodf(now_s(), 1.4f) / 1.4f, seg = w * 0.32f, px = x - seg + (w + seg) * t;
-        g_rt->PushAxisAlignedClip(bar, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-        fill_round(R(px, 148, seg, 6), 3, rgb(col::ACCENT));
-        g_rt->PopAxisAlignedClip();
-    } else fill_round(bar, 3, rgb(warn ? col::WARN : col::OK));
-
-    const D2D1_RECT_F box = R(x, 174, w, BTN_Y - 174 - 22);
-    fill_round(box, 14, rgb(col::BG0));
-    stroke_round(box, 14, rgb(col::BORDER));
+    const D2D1_RECT_F box = R(PAD, 202, CW, FOOT_Y - 202 - 18);
+    asphalt_panel(box);
     std::vector<float> hs;
     float total = 0;
     for (auto &n : g_notes) {
-        hs.push_back(text_height(n.text, n.kind == NOTE_HEADER ? f_bodyb : f_small, w - 66) + (n.kind == NOTE_HEADER ? 12 : 8));
+        hs.push_back(measure(n.text, n.kind == NOTE_HEADER ? F_SANS_SB : F_MONO, n.kind == NOTE_HEADER ? 14 : 12, CW - 70).height + (n.kind == NOTE_HEADER ? 12 : 8));
         total += hs.back();
     }
-    const float room = box.bottom - box.top - 32;
-    float y = box.top + 16 - (total > room ? total - room : 0);
-    g_rt->PushAxisAlignedClip(D2D1::RectF(box.left, box.top + 8, box.right, box.bottom - 8), D2D1_ANTIALIAS_MODE_ALIASED);
+    const float room = box.bottom - box.top - 36;
+    float y = box.top + 18 - (total > room ? total - room : 0);
+    g_rt->PushAxisAlignedClip(D2D1::RectF(box.left, box.top + 10, box.right, box.bottom - 10), D2D1_ANTIALIAS_MODE_ALIASED);
     for (size_t i = 0; i < g_notes.size(); i++) {
         const Note &n = g_notes[i];
-        if (n.kind == NOTE_HEADER) text(n.text, f_bodyb, R(box.left + 20, y, w - 40, hs[i]), rgb(col::TEXT));
-        else {
-            note_icon(n.kind, box.left + 22, y + 1);
-            text(n.text, f_small, R(box.left + 46, y, w - 66, hs[i]), rgb(n.kind == NOTE_ERROR ? 0xFFB3B3 : col::SOFT));
+        if (n.kind == NOTE_HEADER) {
+            text(n.text, F_SANS_SB, 14, R(box.left + 22, y, CW - 44, hs[i]), rgb(0xFFFFFF));
+        } else {
+            if (n.kind == NOTE_OK) icon("check", box.left + 22, y, 16, rgb(col::OK_DARK), 2.2f);
+            else if (n.kind == NOTE_WARN || n.kind == NOTE_ERROR) {
+                const unsigned c = n.kind == NOTE_WARN ? col::SIGNAL : 0xFF6B6B;
+                g_rt->FillEllipse(D2D1::Ellipse(P(box.left + 30, y + 8), 7, 7), brush(c, 0.22f));
+                text(L"!", F_MONO_SB, 11, R(box.left + 23, y + 1, 14, 14), rgb(c), mid(DWRITE_TEXT_ALIGNMENT_CENTER));
+            } else g_rt->FillEllipse(D2D1::Ellipse(P(box.left + 30, y + 8), 2.5f, 2.5f), brush(0xFFFFFF, 0.4f));
+            text(n.text, F_MONO, 12, R(box.left + 48, y, CW - 70, hs[i]), rgb(n.kind == NOTE_ERROR ? 0xFFB3B3 : 0xD8D4CA));
         }
         y += hs[i];
     }
     g_rt->PopAxisAlignedClip();
-
-    if (g_finished) {
-        button(ID_BACK, R(x, BTN_Y, 120, 44), tr(txt::btn_back), BTN_SECONDARY);
-        if (g_result.need_admin) button(ID_ADMIN, R(x + w - 270, BTN_Y, 270, 44), tr(txt::btn_retry_admin), BTN_PRIMARY);
-        else button(ID_CONTINUE, R(x + w - 160, BTN_Y, 160, 44), tr(txt::btn_next), BTN_PRIMARY);
-    }
 }
 
 static const Game *launchable()
@@ -543,132 +860,148 @@ static const Game *launchable()
 
 static void page_done()
 {
-    const float x = content_x(), w = content_w();
     const float t = g_check_t, e = 1 - (1 - t) * (1 - t) * (1 - t);
-    const float cx = x + 28, cy = 108;
-    g_rt->FillEllipse(D2D1::Ellipse(P(cx, cy), 26 * e, 26 * e), brush(col::OK, 0.15f));
-    g_rt->DrawEllipse(D2D1::Ellipse(P(cx, cy), 26 * e, 26 * e), brush(col::OK), 2);
-    if (t > 0.4f) stroke_lines({P(cx - 10, cy + 1), P(cx - 3, cy + 8), P(cx + 11, cy - 7)}, rgb(col::OK, (t - 0.4f) / 0.6f), 3.2f);
     const bool removed = g_uninstall_mode;
-    text(tr(removed ? txt::removed_title : txt::done_title), f_display, R(x + 72, 80, w - 72, 46), rgb(col::TEXT));
-    text(tr(removed ? txt::removed_sub : txt::done_sub), f_body, R(x + 72, 126, w - 72, 48), rgb(col::MUTED));
+    const float s = 48 * (0.85f + 0.15f * e);
+    fill_round(R(PAD + (48 - s) / 2, 88 + (48 - s) / 2, s, s), 15, rgb(col::INK, e));
+    if (t > 0.35f) icon("check", PAD + 11, 99, 26, rgb(0xFFFFFF, (t - 0.35f) / 0.65f), 2.4f);
+    if (!removed) fill_path("M1.5 0H11L9.5 7H0Z", D2D1::Matrix3x2F::Scale(1.6f, 1.6f) * D2D1::Matrix3x2F::Translation(PAD + 36, 128), rgb(accent()));
+    title(146, tr(removed ? txt::removed_title : txt::done_title), 40);
+    subtitle(194, tr(removed ? txt::removed_sub : txt::done_sub));
+    if (removed) return;
 
-    if (!removed) {
-        const D2D1_RECT_F card = R(x, 196, w, BTN_Y - 196 - 22);
-        fill_round(card, 16, rgb(col::CARD));
-        stroke_round(card, 16, rgb(col::BORDER));
-        text(tr(txt::controls_title), f_bodyb, R(x + 24, 214, w - 48, 24), rgb(col::TEXT));
-        float y = 250;
-        auto row = [&](std::initializer_list<const wchar_t *> keys, const std::wstring &desc) {
-            float kx = x + 24;
-            for (auto k : keys) kx += keycap(kx, y, k) + 6;
-            text(desc, f_small, R(x + 200, y, w - 224, 30), rgb(col::SOFT), DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-            y += 40;
-        };
-        if (g_want_drive) {
-            row({L"W", L"S"}, tr(txt::ctl_ws));
-            row({L"A", L"D"}, tr(txt::ctl_ad));
-            row({L"2×  W", L"2×  S"}, tr(txt::ctl_double));
-        }
-        if (g_want_view) {
-            row({L"Mouse"}, tr(txt::ctl_mouse));
-            row({L"Mouse 3"}, tr(txt::ctl_middle));
-        }
-        text(tr(txt::ctl_ini), f_tiny, R(x + 24, card.bottom - 40, w - 48, 30), rgb(col::FAINT), DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-        if (launchable()) button(ID_LAUNCH, R(x, BTN_Y, 180, 44), tr(txt::btn_launch), BTN_SECONDARY);
+    const D2D1_RECT_F card = R(PAD, 236, CW, FOOT_Y - 236 - 18);
+    fill_round(card, 24, rgb(col::CARD));
+    stroke_round(card, 24, rgb(col::LINE));
+    eyebrow(PAD + 26, 256, tr(txt::controls_title), accent_ink());
+    struct Row { std::vector<std::wstring> keys; const Str *action, *detail; };
+    std::vector<Row> rows;
+    if (g_want_drive) {
+        rows.push_back({{L"A", L"D"}, &txt::ctl_steer, &txt::ctl_steer_d});
+        rows.push_back({{L"W"}, &txt::ctl_thr, &txt::ctl_thr_d});
+        rows.push_back({{L"S"}, &txt::ctl_brk, &txt::ctl_brk_d});
     }
-    button(ID_FINISH, R(x + w - 160, BTN_Y, 160, 44), tr(txt::btn_finish), BTN_PRIMARY);
+    if (g_want_view) {
+        rows.push_back({{L"Mouse"}, &txt::ctl_look, &txt::ctl_look_d});
+        rows.push_back({{tr(txt::ctl_middle)}, &txt::ctl_zoom, &txt::ctl_zoom_d});
+    }
+    const float top = 284, rh = rows.size() > 3 ? 36.f : 42.f;
+    for (size_t i = 0; i < rows.size(); i++) {
+        const float y = top + i * rh;
+        float kx = PAD + 26;
+        for (auto &k : rows[i].keys) kx += keycap(kx, y - 1, k) + 6;
+        text(tr(*rows[i].action), F_SANS_SB, 14, R(PAD + 176, y, 150, 30), rgb(col::INK), mid());
+        text(tr(*rows[i].detail), F_SANS, 13, R(PAD + 316, y, CW - 342, 30), rgb(col::MUTED), mid());
+    }
+    text(tr(txt::ctl_ini), F_SANS, 12, R(PAD + 26, card.bottom - 32, CW - 52, 20), rgb(col::FAINT), mid());
 }
 
 static void page_uninstall()
 {
-    const float x = content_x(), w = content_w();
-    heading(txt::uninstall_title, txt::uninstall_sub);
-    float y = 190;
+    eyebrow(PAD, 96, tr(txt::uninstall_title), accent_ink());
+    title(120, EDITION_NAME, 40);
+    subtitle(168, tr(txt::uninstall_sub));
+    float y = 212;
     if (SZNT_EDITION == 0) {
         for (int i = 0; i < 2; i++) {
             const bool drive = i == 0, on = drive ? g_want_drive : g_want_view;
-            const D2D1_RECT_F r = R(x + i * (w / 2 + 8), y, w / 2 - 8, 58);
-            fill_round(r, 14, rgb(col::CARD));
-            stroke_round(r, 14, on ? rgb(col::ACCENT, 0.5f) : rgb(col::BORDER));
-            text(drive ? L"SZNT Drive" : L"SZNT View", f_bodyb, R(r.left + 20, r.top, 200, 58), rgb(col::TEXT), DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-            toggle(drive ? ID_TOGGLE_DRIVE : ID_TOGGLE_VIEW, r.right - 64, r.top + 17);
+            const int id = drive ? ID_TOGGLE_DRIVE : ID_TOGGLE_VIEW;
+            const D2D1_RECT_F r = R(PAD + i * (CW / 2 + 8), y, CW / 2 - 8, 60);
+            const float h = hover_of(id);
+            fill_round(r, 20, mix(rgb(col::CARD), rgb(col::WHITE_SOFT), h));
+            stroke_round(r, 20, on ? rgb(col::INK) : rgb(col::LINE), on ? 1.5f : 1.f);
+            g_rt->FillEllipse(D2D1::Ellipse(P(r.left + 24, r.top + 30), 4, 4), brush(mod_accent(drive)));
+            text(drive ? L"SZNT Drive" : L"SZNT View", F_SANS_SB, 15, R(r.left + 38, r.top, 200, 60), rgb(col::INK), mid());
+            checkbox(r.right - 44, r.top + 19, on, h);
+            hit(id, r);
         }
         y += 76;
     }
-    game_list(x, y, w);
-    button(ID_UNINSTALL, R(x + w - 180, BTN_Y, 180, 44), tr(txt::btn_uninstall), BTN_DANGER, any_selected() && (g_want_drive || g_want_view));
+    game_list(y);
 }
 
-static void draw_sidebar()
+static void draw_header()
 {
-    g_rt->FillRectangle(R(0, 0, LEFT, H), brush(col::BG0));
-    ID2D1RadialGradientBrush *glow = nullptr;
-    ID2D1GradientStopCollection *stops = nullptr;
-    const D2D1_GRADIENT_STOP gs[2] = {{0, rgb(col::ACCENT, 0.17f)}, {1, rgb(col::ACCENT, 0)}};
-    g_rt->CreateGradientStopCollection(gs, 2, &stops);
-    g_rt->CreateRadialGradientBrush(D2D1::RadialGradientBrushProperties(P(-20, H + 30), P(0, 0), 340, 340), stops, &glow);
-    g_rt->FillRectangle(R(0, 0, LEFT, H), glow);
-    glow->Release();
-    stops->Release();
-    g_rt->FillRectangle(R(LEFT - 1, 0, 1, H), brush(col::BORDER));
-
-    draw_wheel(56, 80, 54);
-    text(L"SZNT", f_tiny, R(96, 58, 160, 16), rgb(col::ACCENT));
-    text(EDITION_NAME, f_h2, R(96, 72, 180, 26), rgb(col::TEXT));
-    text(widen(SZNT_VERSION), f_tiny, R(96, 97, 160, 16), rgb(col::FAINT));
+    g_rt->FillRectangle(R(0, 0, W, HEADER), brush(col::PAPER));
+    g_rt->FillRectangle(R(0, HEADER - 1, W, 1), brush(col::LINE));
+    logo(28, 23, 18, rgb(col::INK), rgb(col::SIGNAL));
 
     if (!g_uninstall_mode) {
         const Str *steps[4] = {&txt::step_lang, &txt::step_mods, &txt::step_games, &txt::step_install};
         const int cur = g_page == P_LANG ? 0 : g_page == P_MODS ? 1 : g_page == P_GAMES ? 2 : 3;
+        float widths[4], total = 0;
+        std::wstring labels[4];
         for (int i = 0; i < 4; i++) {
-            const float y = 170 + i * 48;
+            wchar_t n[8];
+            swprintf(n, 8, L"0%d  ", i + 1);
+            labels[i] = upper(std::wstring(n) + tr(*steps[i]));
+            widths[i] = measure(labels[i], F_MONO, 11, 400, mono_opt()).widthIncludingTrailingWhitespace;
+            total += widths[i] + (i < 3 ? 36 : 0);
+        }
+        float x = (W - total) / 2 - 20;
+        for (int i = 0; i < 4; i++) {
             const bool done = i < cur || g_page == P_DONE, active = i == cur && g_page != P_DONE;
-            if (i < 3) g_rt->FillRectangle(R(39.25f, y + 27, 1.5f, 20), brush(done ? col::ACCENT : 0x2B313B));
-            if (active) {
-                g_rt->FillEllipse(D2D1::Ellipse(P(40, y + 13), 13, 13), brush(col::ACCENT));
-                text(std::to_wstring(i + 1), f_key, R(27, y, 26, 26), rgb(col::INK), DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-            } else if (done) {
-                g_rt->DrawEllipse(D2D1::Ellipse(P(40, y + 13), 12, 12), brush(col::ACCENT), 1.5f);
-                stroke_lines({P(34.5f, y + 13.5f), P(38.5f, y + 17.5f), P(45.5f, y + 9)}, rgb(col::ACCENT), 2);
-            } else {
-                g_rt->DrawEllipse(D2D1::Ellipse(P(40, y + 13), 12, 12), brush(0x343A45), 1.5f);
-                text(std::to_wstring(i + 1), f_key, R(27, y, 26, 26), rgb(col::FAINT), DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-            }
-            text(tr(*steps[i]), active ? f_bodyb : f_body, R(66, y, 190, 26), rgb(active || done ? col::TEXT : col::FAINT),
-                 DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+            const unsigned c = active ? col::INK : done ? col::INK2 : col::FAINT;
+            if (active) g_rt->FillRectangle(R(x, HEADER - 3, widths[i] - 8, 2), brush(accent()));
+            text(labels[i], active ? F_MONO_SB : F_MONO, 11, R(x, 20, widths[i] + 4, 24), rgb(c), mono_opt());
+            x += widths[i];
+            if (i < 3) { g_rt->FillRectangle(R(x + 8, 32, 14, 1), brush(col::LINE2)); x += 36; }
         }
     }
 
-    const float h1 = hover_of(ID_LINK_HOME), h2 = hover_of(ID_LINK_REPO);
-    text(L"mods.sznt.dev", f_small, R(28, H - 72, 200, 20), mix(rgb(col::MUTED), rgb(col::ACCENT), h1));
-    hit(ID_LINK_HOME, R(28, H - 74, 110, 22));
-    text(L"Open source  ·  GPL-3.0", f_tiny, R(28, H - 48, 220, 18), mix(rgb(col::FAINT), rgb(col::MUTED), h2));
-    hit(ID_LINK_REPO, R(28, H - 50, 150, 20));
-}
+    if (!g_update.empty()) {
+        const std::wstring s = upper(fmt(tr(txt::update_available), g_update.c_str()) + L" · " + tr(txt::btn_download));
+        const float w = measure(s, F_MONO, 10.5f, 600, mono_opt()).widthIncludingTrailingWhitespace + 36, h = hover_of(ID_UPDATE);
+        const D2D1_RECT_F r = R(W - 100 - w, 20, w, 24);
+        fill_round(r, 12, mix(rgb(accent()), rgb(accent_ink()), h * 0.4f));
+        icon("download", r.left + 10, r.top + 5, 14, rgb(0xFFFFFF), 2);
+        text(s, F_MONO, 10.5f, R(r.left + 28, r.top, w, 24), rgb(0xFFFFFF), mono_opt());
+        hit(ID_UPDATE, r);
+    }
 
-static void draw_titlebar()
-{
     for (int i = 0; i < 2; i++) {
         const int id = i == 0 ? ID_MIN : ID_CLOSE;
-        const D2D1_RECT_F r = R(W - 92 + i * 46, 0, 46, 36);
-        const float h = hover_of(id), cx = r.left + 23, cy = 18;
-        if (h > 0.01f) g_rt->FillRectangle(r, brush(id == ID_CLOSE ? rgb(0xE5484D, h) : rgb(0xFFFFFF, 0.08f * h)));
-        const D2D1_COLOR_F c = mix(rgb(col::MUTED), rgb(0xFFFFFF), h);
-        if (id == ID_MIN) g_rt->DrawLine(P(cx - 5, cy), P(cx + 5, cy), brush(c), 1.2f);
-        else {
-            g_rt->DrawLine(P(cx - 5, cy - 5), P(cx + 5, cy + 5), brush(c), 1.2f);
-            g_rt->DrawLine(P(cx + 5, cy - 5), P(cx - 5, cy + 5), brush(c), 1.2f);
-        }
+        const D2D1_RECT_F r = R(W - 86 + i * 40, 14, 36, 36);
+        const float h = hover_of(id);
+        if (h > 0.01f) fill_round(r, 10, id == ID_CLOSE ? rgb(col::SIGNAL, h) : rgb(col::INK, 0.07f * h));
+        icon(id == ID_MIN ? "minus" : "x", r.left + 9, r.top + 9, 18, id == ID_CLOSE ? mix(rgb(col::INK2), rgb(0xFFFFFF), h) : rgb(col::INK2), 1.8f);
         hit(id, r);
     }
-    if (!g_update.empty()) {
-        const std::wstring s = fmt(tr(txt::update_available), g_update.c_str()) + L"   ·   " + tr(txt::btn_download) + L"  ›";
-        const float w = text_width(s, f_small) + 30, h = hover_of(ID_UPDATE);
-        const D2D1_RECT_F r = R(W - 108 - w, 8, w, 26);
-        fill_round(r, 13, rgb(col::ACCENT, 0.14f + 0.1f * h));
-        text(s, f_small, r, rgb(col::ACCENT_HI), DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-        hit(ID_UPDATE, r);
+}
+
+static void draw_footer()
+{
+    const float y = FOOT_Y + 8, bh = 48;
+    switch (g_page) {
+    case P_LANG: {
+        const float h = hover_of(ID_LINK_HOME);
+        text(L"MODS.SZNT.DEV", F_MONO, 11, R(PAD, y, 200, bh), mix(rgb(col::MUTED), rgb(col::INK), h), mono_opt());
+        hit(ID_LINK_HOME, R(PAD, y + 12, 120, 24));
+        text(L"v" + widen(SZNT_VERSION), F_MONO, 11, R(W - PAD - 200, y, 200, bh), rgb(col::FAINT), mono_opt(DWRITE_TEXT_ALIGNMENT_TRAILING));
+        break;
+    }
+    case P_MODS:
+        button(ID_BACK, R(PAD, y, 130, bh), tr(txt::btn_back), BTN_GHOST, "arrow-left", true, true);
+        button(ID_NEXT, R(W - PAD - 190, y, 190, bh), tr(txt::btn_next), BTN_INK, "arrow", g_want_drive || g_want_view);
+        break;
+    case P_GAMES:
+        button(ID_BACK, R(PAD, y, 130, bh), tr(txt::btn_back), BTN_GHOST, "arrow-left", true, true);
+        button(ID_INSTALL, R(W - PAD - 210, y, 210, bh), tr(any_selected_installed() ? txt::btn_update : txt::btn_install), BTN_ACCENT, "download", any_selected());
+        break;
+    case P_PROGRESS:
+        if (g_finished) {
+            button(ID_BACK, R(PAD, y, 130, bh), tr(txt::btn_back), BTN_GHOST, "arrow-left", true, true);
+            if (g_result.need_admin) button(ID_ADMIN, R(W - PAD - 290, y, 290, bh), tr(txt::btn_retry_admin), BTN_INK);
+            else button(ID_CONTINUE, R(W - PAD - 190, y, 190, bh), tr(txt::btn_next), BTN_INK);
+        }
+        break;
+    case P_DONE:
+        if (!g_uninstall_mode && launchable()) button(ID_LAUNCH, R(PAD, y, 210, bh), tr(txt::btn_launch), BTN_GHOST, "truck", true, true);
+        button(ID_FINISH, R(W - PAD - 190, y, 190, bh), tr(txt::btn_finish), BTN_INK, "check");
+        break;
+    case P_UNINSTALL:
+        button(ID_UNINSTALL, R(W - PAD - 210, y, 210, bh), tr(txt::btn_uninstall), BTN_INK, "x", any_selected() && (g_want_drive || g_want_view));
+        break;
     }
 }
 
@@ -682,6 +1015,7 @@ static void draw_page()
     case P_DONE: page_done(); break;
     case P_UNINSTALL: page_uninstall(); break;
     }
+    draw_footer();
 }
 
 // ------------------------------------------------------------------ render
@@ -706,26 +1040,21 @@ static void render()
 {
     create_target();
     g_rt->BeginDraw();
-    g_rt->Clear(rgb(col::BG1));
+    g_rt->Clear(rgb(col::PAPER));
     g_hits.clear();
     g_opacity = 1;
-    draw_sidebar();
-    draw_titlebar();
+    grid_lines(R(0, HEADER, W, H - HEADER), col::INK, 0.045f, 56);
     const float e = 1 - (1 - g_page_t) * (1 - g_page_t) * (1 - g_page_t);
     g_opacity = e;
-    g_rt->SetTransform(D2D1::Matrix3x2F::Translation((1 - e) * 18, 0));
+    g_rt->SetTransform(D2D1::Matrix3x2F::Translation(0, (1 - e) * 14));
     draw_page();
     g_rt->SetTransform(D2D1::Matrix3x2F::Identity());
     g_opacity = 1;
+    draw_header();
     if (g_rt->EndDraw() == (HRESULT)D2DERR_RECREATE_TARGET) release_target();
 }
 
-static float anim_target(int id)
-{
-    if (id == ID_TOGGLE_DRIVE + 1000) return g_want_drive ? 1.f : 0.f;
-    if (id == ID_TOGGLE_VIEW + 1000) return g_want_view ? 1.f : 0.f;
-    return id == g_hover ? 1.f : 0.f;
-}
+static float anim_target(int id) { return id == g_hover ? 1.f : 0.f; }
 
 static bool animating()
 {
@@ -736,8 +1065,8 @@ static bool animating()
 
 static void tick(float dt)
 {
-    g_page_t = fminf(1.f, g_page_t + dt / 0.3f);
-    if (g_page == P_DONE) g_check_t = fminf(1.f, g_check_t + dt / 0.6f);
+    g_page_t = fminf(1.f, g_page_t + dt / 0.32f);
+    if (g_page == P_DONE) g_check_t = fminf(1.f, g_check_t + dt / 0.5f);
     if (g_hover != ID_NONE) g_anim[g_hover];
     const float k = 1 - expf(-dt * 16);
     for (auto &kv : g_anim) kv.second += (anim_target(kv.first) - kv.second) * k;
@@ -789,7 +1118,7 @@ static DWORD WINAPI worker(LPVOID)
 {
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     Result *res = new Result;
-    Sleep(400);
+    Sleep(500);
     for (auto &g : g_games) {
         if (!g.selected) continue;
         if (g_uninstall_mode) uninstall_game(g, g_want_drive, g_want_view, *res);
@@ -800,7 +1129,7 @@ static DWORD WINAPI worker(LPVOID)
         if (g_uninstall_mode) unregister_app(g_want_drive && !installed_anywhere(g_games, true), g_want_view && !installed_anywhere(g_games, false));
         else if (res->ok) register_app(g_want_drive, g_want_view);
     }
-    Sleep(300);
+    Sleep(400);
     PostMessageW(g_wnd, WM_APP_DONE, 0, (LPARAM)res);
     CoUninitialize();
     return 0;
@@ -895,7 +1224,6 @@ static void click(int id)
     case ID_ADD_FOLDER: add_folder(); break;
     case ID_UPDATE: open_url(download_page()); break;
     case ID_LINK_HOME: open_url(SZNT_URL_HOME); break;
-    case ID_LINK_REPO: open_url(SZNT_REPO_URL); break;
     case ID_LINK_OTHER: open_url(SZNT_EDITION == 1 ? SZNT_URL_VIEW : SZNT_URL_DRIVE); break;
     }
 }
@@ -918,7 +1246,7 @@ static LRESULT CALLBACK wnd_proc(HWND h, UINT m, WPARAM wp, LPARAM lp)
     case WM_NCHITTEST: {
         POINT p = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
         ScreenToClient(h, &p);
-        if (dip(p.y) < 40 && hit_at(dip(p.x), dip(p.y)) == ID_NONE) return HTCAPTION;
+        if (dip(p.y) < HEADER && hit_at(dip(p.x), dip(p.y)) == ID_NONE) return HTCAPTION;
         return HTCLIENT;
     }
     case WM_PAINT: {
@@ -1025,10 +1353,9 @@ static void silent_note(NoteKind k, const std::wstring &s)
 
 // SZNT-Setup.exe --silent [--uninstall] [--only-drive|--only-view] [--lang en|pt|es|de] [--game "folder"]...
 // Report in %TEMP%\sznt-setup.log.
-static int run_silent(const std::vector<std::wstring> &only)
+static int run_silent()
 {
     g_note = silent_note;
-    (void)only;
     Result res;
     if (g_games.empty()) { silent_note(NOTE_ERROR, tr(txt::m_no_games)); res.ok = false; }
     for (auto &g : g_games) {
@@ -1068,7 +1395,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show)
     g_games = find_games();
     if (!only.empty()) { g_games.clear(); for (auto &p : only) add_game(g_games, p); }
     if (silent) {
-        const int rc = run_silent(only);
+        const int rc = run_silent();
         CoUninitialize();
         return rc;
     }
@@ -1086,34 +1413,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show)
             g.selected = (g_want_drive && !s.drive.empty()) || (g_want_view && !s.view.empty());
         }
     refresh_status();
-    g_anim[ID_TOGGLE_DRIVE + 1000] = g_want_drive ? 1.f : 0.f;
-    g_anim[ID_TOGGLE_VIEW + 1000] = g_want_view ? 1.f : 0.f;
 
     D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), nullptr, (void **)&g_d2d);
     DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory), (IUnknown **)&g_dw);
+    load_brand_fonts();
     g_d2d->CreateStrokeStyle(D2D1::StrokeStyleProperties(D2D1_CAP_STYLE_ROUND, D2D1_CAP_STYLE_ROUND, D2D1_CAP_STYLE_ROUND, D2D1_LINE_JOIN_ROUND),
                              nullptr, 0, &g_round);
-    const wchar_t *disp = font_exists(L"Segoe UI Variable Display") ? L"Segoe UI Variable Display" : L"Segoe UI";
-    const wchar_t *body = font_exists(L"Segoe UI Variable Text") ? L"Segoe UI Variable Text" : L"Segoe UI";
-    f_display = make_format(disp, 30, DWRITE_FONT_WEIGHT_SEMI_BOLD);
-    f_title = make_format(disp, 22, DWRITE_FONT_WEIGHT_SEMI_BOLD);
-    f_h2 = make_format(disp, 17, DWRITE_FONT_WEIGHT_SEMI_BOLD);
-    f_body = make_format(body, 14.5f, DWRITE_FONT_WEIGHT_NORMAL);
-    f_bodyb = make_format(body, 14.5f, DWRITE_FONT_WEIGHT_SEMI_BOLD);
-    f_small = make_format(body, 13, DWRITE_FONT_WEIGHT_NORMAL);
-    f_tiny = make_format(body, 11.5f, DWRITE_FONT_WEIGHT_NORMAL);
-    f_key = make_format(body, 12.5f, DWRITE_FONT_WEIGHT_SEMI_BOLD);
-    f_path = make_format(body, 12, DWRITE_FONT_WEIGHT_NORMAL);
-    f_path->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-    IDWriteInlineObject *ellipsis = nullptr;
-    g_dw->CreateEllipsisTrimmingSign(f_path, &ellipsis);
-    const DWRITE_TRIMMING trim = {DWRITE_TRIMMING_GRANULARITY_CHARACTER, 0, 0};
-    f_path->SetTrimming(&trim, ellipsis);
-    f_name = make_format(body, 14.5f, DWRITE_FONT_WEIGHT_SEMI_BOLD);
-    f_name->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-    IDWriteInlineObject *ellipsis2 = nullptr;
-    g_dw->CreateEllipsisTrimmingSign(f_name, &ellipsis2);
-    f_name->SetTrimming(&trim, ellipsis2);
+    g_d2d->CreateStrokeStyle(D2D1::StrokeStyleProperties(D2D1_CAP_STYLE_FLAT, D2D1_CAP_STYLE_FLAT, D2D1_CAP_STYLE_FLAT, D2D1_LINE_JOIN_MITER, 10,
+                                                         D2D1_DASH_STYLE_DASH), nullptr, 0, &g_dash);
 
     WNDCLASSEXW wc; memset(&wc, 0, sizeof(wc));
     wc.cbSize = sizeof(wc);
@@ -1135,8 +1442,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, PWSTR, int show)
     const int ww = MulDiv((int)W, g_dpi, 96), wh = MulDiv((int)H, g_dpi, 96);
     SetWindowPos(g_wnd, nullptr, mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - ww) / 2,
                  mi.rcWork.top + (mi.rcWork.bottom - mi.rcWork.top - wh) / 2, ww, wh, SWP_NOZORDER | SWP_FRAMECHANGED);
-    const BOOL dark = TRUE;
-    DwmSetWindowAttribute(g_wnd, 20, &dark, sizeof(dark));
     const int round = 2;
     DwmSetWindowAttribute(g_wnd, 33, &round, sizeof(round));
     const MARGINS margins = {0, 0, 0, 1};

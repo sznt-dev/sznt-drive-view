@@ -25,6 +25,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Fonts (embedded in the installer, `src/setup/fonts`)
+
+Static instances of **Archivo** (Copyright 2020 The Archivo Project Authors) and **Geist / Geist Mono** (Copyright 2024 The Geist Project Authors), renamed SZNT Wide / Display / Sans / Mono and licensed under the SIL Open Font License 1.1. The full license is in `src/setup/fonts/OFL.txt`; `tools/make_fonts.py` shows how they were made.
+
 ## Compatibility
 
 SZNT View and SZNT Drive read the game log to stay idle while the third-party *TM Real Walk* plugin

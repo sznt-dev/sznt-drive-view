@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="docs/img/banner.svg" alt="SZNT Drive & View - feel the truck, not the keyboard" width="100%">
+  <img src="docs/img/banner.png" alt="SZNT Drive + View" width="100%">
 </p>
 
 <p align="center">
-  <a href="https://mods.sznt.dev"><img alt="Download" src="https://img.shields.io/badge/download-mods.sznt.dev-F2A900?style=for-the-badge&labelColor=12151B"></a>
-  <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-EDEFF3?style=for-the-badge&labelColor=12151B"></a>
+  <a href="https://mods.sznt.dev"><img alt="Download" src="https://img.shields.io/badge/download-mods.sznt.dev-FF4D00?style=for-the-badge&labelColor=111214"></a>
+  <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-EDEBE6?style=for-the-badge&labelColor=111214"></a>
 </p>
 <p align="center">
-  <img alt="Euro Truck Simulator 2" src="https://img.shields.io/badge/Euro_Truck_Simulator_2-tested_on_1.61-3DDC84?style=flat-square&labelColor=12151B">
-  <img alt="American Truck Simulator" src="https://img.shields.io/badge/American_Truck_Simulator-beta-F2A900?style=flat-square&labelColor=12151B">
-  <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-8D94A0?style=flat-square&labelColor=12151B">
-  <img alt="Plugins never go online" src="https://img.shields.io/badge/plugins-offline,_no_telemetry-8D94A0?style=flat-square&labelColor=12151B">
+  <img alt="Euro Truck Simulator 2" src="https://img.shields.io/badge/Euro_Truck_Simulator_2-tested_on_1.61-138A4B?style=flat-square&labelColor=111214">
+  <img alt="American Truck Simulator" src="https://img.shields.io/badge/American_Truck_Simulator-beta-FF4D00?style=flat-square&labelColor=111214">
+  <img alt="Windows 10/11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-6F6D67?style=flat-square&labelColor=111214">
+  <img alt="Plugins never go online" src="https://img.shields.io/badge/plugins-offline,_no_telemetry-6F6D67?style=flat-square&labelColor=111214">
 </p>
 
 <p align="center">
@@ -55,9 +55,9 @@ The two mods are independent: install one, the other, or both. Euro Truck Simula
 ## ⬇ Download
 
 <p>
-  <a href="https://mods.sznt.dev/ets2-ats2-drive"><img alt="Get SZNT Drive" src="https://img.shields.io/badge/Get-SZNT_Drive-F2A900?style=for-the-badge&labelColor=12151B"></a>
+  <a href="https://mods.sznt.dev/ets2-ats2-drive"><img alt="Get SZNT Drive" src="https://img.shields.io/badge/Get-SZNT_Drive-FF4D00?style=for-the-badge&labelColor=111214"></a>
   &nbsp;
-  <a href="https://mods.sznt.dev/ets2-ats2-view"><img alt="Get SZNT View" src="https://img.shields.io/badge/Get-SZNT_View-F2A900?style=for-the-badge&labelColor=12151B"></a>
+  <a href="https://mods.sznt.dev/ets2-ats2-view"><img alt="Get SZNT View" src="https://img.shields.io/badge/Get-SZNT_View-2B59FF?style=for-the-badge&labelColor=111214"></a>
 </p>
 
 Both are **free**. Downloads live on [mods.sznt.dev](https://mods.sznt.dev), where you can also grab both mods in a single installer and get an email when a new version is out. This repository holds the complete source code, so you can see exactly what you are installing.
@@ -70,7 +70,7 @@ Both are **free**. Downloads live on [mods.sznt.dev](https://mods.sznt.dev), whe
     <td><img src="docs/img/installer-mods.png" alt="Choose the mods"></td>
   </tr>
   <tr>
-    <td><img src="docs/img/installer-games.png" alt="Choose your games"></td>
+    <td><img src="docs/img/installer-drive.png" alt="SZNT Drive installer"></td>
     <td><img src="docs/img/installer-done.png" alt="All set"></td>
   </tr>
 </table>
@@ -114,7 +114,7 @@ The installer:
 
 The plugin adds up the tractor, every coupled trailer and the cargo mass the game reports for your job. The tuning you feel with a heavy load is the reference; everything scales from there.
 
-<p align="center"><img src="docs/img/weight.svg" alt="Throttle time by load" width="760"></p>
+<p align="center"><img src="docs/img/weight.png" alt="Throttle time by load" width="760"></p>
 
 | Rig | Throttle to 100% | Steering speed | Brake to 100% |
 |---|:---:|:---:|:---:|
@@ -301,6 +301,6 @@ Prefer not to use the installer at all? [docs/MANUAL-INSTALL.md](docs/MANUAL-INS
 
 SZNT Drive & View is free software, released under the [GNU General Public License v3.0](LICENSE). You can use, study, share and modify it; if you distribute a modified version, it must stay open under the same license and keep the credits.
 
-The SCS SDK headers in `sdk/` are © SCS Software under the MIT license (see [THIRD_PARTY.md](THIRD_PARTY.md)). Euro Truck Simulator 2 and American Truck Simulator are trademarks of SCS Software; this project is not affiliated with or endorsed by SCS Software. The SZNT name and logo identify the official releases.
+The SCS SDK headers in `sdk/` are © SCS Software under the MIT license, and the installer uses the Archivo and Geist fonts under the SIL Open Font License (see [THIRD_PARTY.md](THIRD_PARTY.md)). Euro Truck Simulator 2 and American Truck Simulator are trademarks of SCS Software; this project is not affiliated with or endorsed by SCS Software. The SZNT name and logo identify the official releases.
 
-<p align="center"><br><img src="docs/img/icon.png" width="56" alt="SZNT"><br><sub>Made with patience, many kilometres and a keyboard. · <a href="https://mods.sznt.dev">mods.sznt.dev</a></sub></p>
+<p align="center"><br><img src="docs/img/icon.png" width="48" alt="SZNT"><br><sub><a href="https://mods.sznt.dev">mods.sznt.dev</a></sub></p>
