@@ -58,7 +58,7 @@ The two mods are independent: install one, the other, or both. Euro Truck Simula
   <a href="https://mods.sznt.dev"><img alt="Get SZNT Drive + View" src="https://img.shields.io/badge/Get-SZNT_Drive_+_View-FF4D00?style=for-the-badge&labelColor=111214"></a>
 </p>
 
-Both are **free**. Downloads live on [mods.sznt.dev](https://mods.sznt.dev): one installer with both mods (untick either one if you only want one), and an email when a new version is out. This repository holds the complete source code, so you can see exactly what you are installing.
+Both are **free**. Get them on [mods.sznt.dev](https://mods.sznt.dev): one installer with both mods (untick either one if you only want one), and an email when a new version is out. If you'd rather download directly, every installer is also attached to the [latest release](https://github.com/sznt-dev/sznt-drive-view/releases/latest), with its SHA-256. This repository holds the complete source code, so you can see exactly what you are installing.
 
 **Installing takes about a minute:** close the game, run the installer, pick your language, the mods and your games, click *Install*. That's it.
 
