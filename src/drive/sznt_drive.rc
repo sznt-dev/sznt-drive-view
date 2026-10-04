@@ -1,0 +1,6 @@
+#define SZNT_FILE_DESC "SZNT Drive - realistic keyboard steering, pedals and weight for ETS2/ATS"
+#define SZNT_INTERNAL  "sznt-drive"
+#define SZNT_ORIGINAL  "sznt-drive.dll"
+#define SZNT_PRODUCT   "SZNT Drive"
+#define SZNT_FILETYPE  VFT_DLL
+#include "version_info.rc"

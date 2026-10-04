@@ -1,0 +1,6 @@
+#define SZNT_FILE_DESC "SZNT View - realistic head and gaze in the cab for ETS2/ATS"
+#define SZNT_INTERNAL  "sznt-view"
+#define SZNT_ORIGINAL  "sznt-view.dll"
+#define SZNT_PRODUCT   "SZNT View"
+#define SZNT_FILETYPE  VFT_DLL
+#include "version_info.rc"

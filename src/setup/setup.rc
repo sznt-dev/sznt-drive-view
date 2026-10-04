@@ -1,0 +1,20 @@
+#include "setup_res.h"
+#if SZNT_EDITION == 1
+#define SZNT_FILE_DESC "SZNT Drive Setup - install, update and remove SZNT Drive"
+#define SZNT_ORIGINAL  "SZNT-Drive-Setup.exe"
+#define SZNT_PRODUCT   "SZNT Drive"
+#elif SZNT_EDITION == 2
+#define SZNT_FILE_DESC "SZNT View Setup - install, update and remove SZNT View"
+#define SZNT_ORIGINAL  "SZNT-View-Setup.exe"
+#define SZNT_PRODUCT   "SZNT View"
+#else
+#define SZNT_FILE_DESC "SZNT Setup - install, update and remove SZNT Drive and SZNT View"
+#define SZNT_ORIGINAL  "SZNT-Setup.exe"
+#define SZNT_PRODUCT   "SZNT Drive & View"
+#endif
+#define SZNT_INTERNAL  "sznt-setup"
+#define SZNT_FILETYPE  VFT_APP
+#include "version_info.rc"
+
+1 24 "setup.manifest"
+IDI_APP ICON "sznt.ico"

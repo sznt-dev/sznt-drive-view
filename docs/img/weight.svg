@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="330" viewBox="0 0 860 330">
+  <rect width="860" height="330" rx="18" fill="#12151B"/>
+  <g font-family="Segoe UI, Inter, -apple-system, Helvetica, Arial, sans-serif">
+    <text x="32" y="44" fill="#EDEFF3" font-size="19" font-weight="600">How long it takes to floor the throttle with W</text>
+    <text x="32" y="68" fill="#8D94A0" font-size="13">Same keyboard, same driver - the plugin reads the real mass of your rig from the game.</text>
+
+    <g font-size="13.5">
+      <text x="32" y="112" fill="#C5CAD3">Tractor only · 8.5 t</text>
+      <rect x="250" y="98" width="530" height="20" rx="10" fill="#1B1F26"/>
+      <rect x="250" y="98" width="291" height="20" rx="10" fill="#F2A900" fill-opacity="0.55"/>
+      <text x="551" y="113" fill="#EDEFF3" font-size="12.5">6.1 s</text>
+
+      <text x="32" y="148" fill="#C5CAD3">Empty trailer · 15.5 t</text>
+      <rect x="250" y="134" width="530" height="20" rx="10" fill="#1B1F26"/>
+      <rect x="250" y="134" width="339" height="20" rx="10" fill="#F2A900" fill-opacity="0.65"/>
+      <text x="599" y="149" fill="#EDEFF3" font-size="12.5">7.1 s</text>
+
+      <text x="32" y="184" fill="#C5CAD3">10 t cargo · 25.5 t</text>
+      <rect x="250" y="170" width="530" height="20" rx="10" fill="#1B1F26"/>
+      <rect x="250" y="170" width="382" height="20" rx="10" fill="#F2A900" fill-opacity="0.75"/>
+      <text x="642" y="185" fill="#EDEFF3" font-size="12.5">8.0 s</text>
+
+      <text x="32" y="220" fill="#EDEFF3" font-weight="600">Heavy load · 40 t (reference)</text>
+      <rect x="250" y="206" width="530" height="20" rx="10" fill="#1B1F26"/>
+      <rect x="250" y="206" width="430" height="20" rx="10" fill="#F2A900"/>
+      <text x="690" y="221" fill="#EDEFF3" font-size="12.5">9.0 s</text>
+
+      <text x="32" y="256" fill="#C5CAD3">40 t cargo · 55.5 t</text>
+      <rect x="250" y="242" width="530" height="20" rx="10" fill="#1B1F26"/>
+      <rect x="250" y="242" width="463" height="20" rx="10" fill="#E08A00"/>
+      <text x="723" y="257" fill="#EDEFF3" font-size="12.5">9.7 s</text>
+
+      <text x="32" y="292" fill="#C5CAD3">Heavy haul · 95.5 t</text>
+      <rect x="250" y="278" width="530" height="20" rx="10" fill="#1B1F26"/>
+      <rect x="250" y="278" width="530" height="20" rx="10" fill="#C96F00"/>
+      <text x="790" y="293" fill="#EDEFF3" font-size="12.5">11.1 s</text>
+    </g>
+  </g>
+</svg>
