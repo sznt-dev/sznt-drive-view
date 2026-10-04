@@ -5,7 +5,6 @@
 <p align="center">
   <a href="https://mods.sznt.dev"><img alt="Download" src="https://img.shields.io/badge/download-mods.sznt.dev-F2A900?style=for-the-badge&labelColor=12151B"></a>
   <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-EDEFF3?style=for-the-badge&labelColor=12151B"></a>
-  <a href="../../actions/workflows/build.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/sznt-dev/sznt-drive-view/build.yml?style=for-the-badge&labelColor=12151B&label=build%20%26%20tests"></a>
 </p>
 <p align="center">
   <img alt="Euro Truck Simulator 2" src="https://img.shields.io/badge/Euro_Truck_Simulator_2-tested_on_1.61-3DDC84?style=flat-square&labelColor=12151B">
@@ -281,7 +280,7 @@ $env:SZNT_MINGW = "C:\msys64\mingw64\bin"
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-`build.ps1` runs the test suite, builds both plugins and the three installers (Drive, View and both), and puts everything in `dist\` with a `SHA256SUMS.txt`. Every push to this repository is built and tested the same way by [GitHub Actions](../../actions).
+`build.ps1` runs the test suite, builds both plugins and the three installers (Drive, View and both), and puts everything in `dist\` with a `SHA256SUMS.txt`.
 
 ```
 src/

@@ -42,7 +42,7 @@ Get-FileHash .\SZNT-Setup-v1.0.0-beta.2.exe -Algorithm SHA256
 
 The installer also checks the SHA-256 of every file it carries before writing it; a damaged installer refuses to install.
 
-You can always [build everything from source](README.md#-build-it-yourself). Every commit is built and tested on GitHub Actions.
+You can always [build everything from source](README.md#-build-it-yourself).
 
 ## Antivirus warnings
 
