@@ -659,7 +659,7 @@ static void subtitle(float y, const std::wstring &s, float w = CW * 0.82f) { tex
 
 static std::wstring status_text(size_t i, unsigned &c)
 {
-    if (process_running(g_games[i].exe)) { c = col::ERR; return tr(txt::st_running); }
+    if (game_running(g_games[i])) { c = col::ERR; return tr(txt::st_running); }
     const GameStatus &s = g_status[i];
     std::wstring v;
     if (HAS_DRIVE && HAS_VIEW && !s.drive.empty() && s.drive == s.view) v = s.drive;

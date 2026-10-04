@@ -8,8 +8,8 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
-#include <tlhelp32.h>
 #include <bcrypt.h>
+#include <compressapi.h>
 #include <winhttp.h>
 #include <string>
 #include <vector>
@@ -122,7 +122,7 @@ inline std::string sha256_hex(const std::string &data)
     return out;
 }
 
-// Embedded file, checked against the SHA-256 recorded at build time.
+// Embedded file (MSZIP-compressed by pack.cpp), checked against the SHA-256 recorded at build time.
 inline bool payload(int id, std::string &out)
 {
     out.clear();
@@ -130,7 +130,16 @@ inline bool payload(int id, std::string &out)
     HGLOBAL g = r ? LoadResource(nullptr, r) : nullptr;
     const void *p = g ? LockResource(g) : nullptr;
     if (!p) return false;
-    out.assign((const char *)p, SizeofResource(nullptr, r));
+    DECOMPRESSOR_HANDLE d = nullptr;
+    if (!CreateDecompressor(COMPRESS_ALGORITHM_MSZIP, nullptr, &d)) return false;
+    SIZE_T size = 0;
+    void *src = const_cast<void *>(p);
+    Decompress(d, src, SizeofResource(nullptr, r), nullptr, 0, &size);
+    out.resize(size);
+    const bool ok = size && Decompress(d, src, SizeofResource(nullptr, r), &out[0], out.size(), &size);
+    CloseDecompressor(d);
+    if (!ok) return false;
+    out.resize(size);
     for (const PayloadItem &it : SZNT_PAYLOAD)
         if (it.id == id) return sha256_hex(out) == it.sha256;
     return false;
@@ -229,16 +238,17 @@ inline std::vector<Game> find_games()
     return games;
 }
 
-inline bool process_running(const std::wstring &exe)
+// Both games use the "prism3d" window class; the title tells them apart.
+inline bool game_running(const Game &g)
 {
-    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snap == INVALID_HANDLE_VALUE) return false;
-    PROCESSENTRY32W pe; pe.dwSize = sizeof(pe);
-    bool found = false;
-    for (BOOL ok = Process32FirstW(snap, &pe); ok && !found; ok = Process32NextW(snap, &pe))
-        found = !_wcsicmp(pe.szExeFile, exe.c_str());
-    CloseHandle(snap);
-    return found;
+    for (HWND w = FindWindowExW(nullptr, nullptr, L"prism3d", nullptr); w; w = FindWindowExW(nullptr, w, L"prism3d", nullptr)) {
+        wchar_t title[256] = {0};
+        GetWindowTextW(w, title, 256);
+        const std::wstring t = title;
+        const bool ets2 = t.find(L"Euro Truck") != std::wstring::npos, ats = t.find(L"American Truck") != std::wstring::npos;
+        if ((!ets2 && !ats) || (ets2 && g.steam_app == 227300) || (ats && g.steam_app == 270880)) return true;
+    }
+    return false;
 }
 
 inline std::wstring file_version(const std::wstring &path)
@@ -463,7 +473,7 @@ inline void patch_profiles(const Game &g, bool install, bool drive, bool view, R
 inline void install_game(const Game &g, bool drive, bool view, Result &res)
 {
     note(NOTE_HEADER, g.name);
-    if (process_running(g.exe)) { note(NOTE_ERROR, fmt(tr(txt::m_running), g.name.c_str())); res.ok = false; return; }
+    if (game_running(g)) { note(NOTE_ERROR, fmt(tr(txt::m_running), g.name.c_str())); res.ok = false; return; }
     const std::wstring dir = plugins_dir(g);
     if (!can_write(dir)) { res.need_admin = true; res.ok = false; return; }
     ini::Values drive_old, view_old;
@@ -479,7 +489,7 @@ inline void install_game(const Game &g, bool drive, bool view, Result &res)
 inline void uninstall_game(const Game &g, bool drive, bool view, Result &res)
 {
     note(NOTE_HEADER, g.name);
-    if (process_running(g.exe)) { note(NOTE_ERROR, fmt(tr(txt::m_running), g.name.c_str())); res.ok = false; return; }
+    if (game_running(g)) { note(NOTE_ERROR, fmt(tr(txt::m_running), g.name.c_str())); res.ok = false; return; }
     const std::wstring dir = plugins_dir(g);
     if (exists(dir) && !can_write(dir)) { res.need_admin = true; res.ok = false; return; }
     for (int i = 0; i < 2; i++) {

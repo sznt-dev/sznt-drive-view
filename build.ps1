@@ -40,8 +40,10 @@ if (-not $SkipTests) {
     }
 }
 
+# Windows 7+ PE header (mingw defaults to XP) and a real build timestamp
+$pe = "-Wl,--major-subsystem-version,6,--minor-subsystem-version,1,--major-os-version,6,--minor-os-version,1"
 $dll = @("-O2", "-std=c++17", "-shared", "-static", "-static-libgcc", "-static-libstdc++", "-s", "-Wall", "-Wextra",
-         "-Wno-missing-field-initializers", "-Wl,--no-insert-timestamp", "-I$sdk", "-I$src\common")
+         "-Wno-missing-field-initializers", $pe, "-I$sdk", "-I$src\common")
 foreach ($m in @("drive", "view")) {
     Write-Host "[sznt-$m.dll]" -ForegroundColor Yellow
     Push-Location $src
@@ -55,6 +57,8 @@ $noman = Join-Path $env:TEMP "sznt-noman"
 New-Item -ItemType Directory -Force $noman | Out-Null
 [IO.File]::WriteAllText("$noman\empty.c", "int sznt_no_default_manifest;`n")
 Run gcc @("-c", "$noman\empty.c", "-o", "$noman\default-manifest.o")
+
+Run g++ @("-O2", "-s", "$src\setup\pack.cpp", "-o", "$build\pack.exe", "-lcabinet")
 
 $langs = @("EN", "PT", "ES", "DE")
 $editions = @(
@@ -76,7 +80,8 @@ foreach ($e in $editions) {
     foreach ($it in $items) {
         $hash = (Get-FileHash "$build\$($it.file)" -Algorithm SHA256).Hash.ToLower()
         $h += "    { $($it.id), `"$hash`" },`n"
-        $rc += "$($it.id) RCDATA `"$(("$build\$($it.file)").Replace('\', '/'))`"`n"
+        Run "$build\pack.exe" @("$build\$($it.file)", "$ed\$($it.file).mszip") | Out-Null
+        $rc += "$($it.id) RCDATA `"$(("$ed\$($it.file).mszip").Replace('\', '/'))`"`n"
     }
     [IO.File]::WriteAllText("$ed\payload_hash.h", $h + "};`n")
     [IO.File]::WriteAllText("$ed\payload.rc", $rc)
@@ -86,9 +91,9 @@ foreach ($e in $editions) {
         Run windres @("-I.", "../../build/ed$($e.n)/payload.rc", "-O", "coff", "-o", "../../build/ed$($e.n)/payload.res.o")
     } finally { Pop-Location }
     Run g++ @("-B$($noman.Replace('\', '/'))/", "-O2", "-std=c++17", "-static", "-static-libgcc", "-static-libstdc++", "-s", "-Wall", "-Wextra",
-              "-Wl,--no-insert-timestamp", "-municode", "-mwindows", "-DSZNT_EDITION=$($e.n)", "-I$src\common", "-I$src\setup", "-I$ed",
+              $pe, "-municode", "-mwindows", "-DSZNT_EDITION=$($e.n)", "-I$src\common", "-I$src\setup", "-I$ed",
               "-o", "$ed\$($e.exe).exe", "$src\setup\setup.cpp", "$ed\setup.res.o", "$ed\payload.res.o",
-              "-ld2d1", "-ldwrite", "-ldwmapi", "-lole32", "-luuid", "-lshell32", "-lbcrypt", "-lwinhttp", "-lversion", "-ladvapi32", "-luser32", "-lwindowscodecs")
+              "-ld2d1", "-ldwrite", "-ldwmapi", "-lole32", "-luuid", "-lshell32", "-lbcrypt", "-lwinhttp", "-lversion", "-ladvapi32", "-luser32", "-lwindowscodecs", "-lcabinet")
 }
 
 Write-Host "[dist]" -ForegroundColor Yellow

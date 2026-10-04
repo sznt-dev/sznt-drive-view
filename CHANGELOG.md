@@ -12,6 +12,7 @@
 - New look, matching mods.sznt.dev: same fonts, colors and logo, light and dark theme following Windows.
 - Short in-game clips of each mod instead of drawings.
 - The installer with both mods is now `SZNT-Drive-View-Setup.exe`.
+- Files inside the installer are compressed (smaller download), and checking whether the game is open no longer lists running processes, it just looks for the game window.
 - Shorter, plainer wording in all four languages.
 
 ## 1.0.0-beta.1
