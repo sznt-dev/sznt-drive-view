@@ -37,7 +37,7 @@ Uninstalling deletes the DLLs, keeps your settings as `.ini.bak`, and restores e
 Every release lists the SHA-256 of each file. In PowerShell:
 
 ```powershell
-Get-FileHash .\SZNT-Setup-v1.0.0-beta.2.exe -Algorithm SHA256
+Get-FileHash .\SZNT-Drive-View-Setup-v1.0.0-beta.2.exe -Algorithm SHA256
 ```
 
 The installer also checks the SHA-256 of every file it carries before writing it; a damaged installer refuses to install.

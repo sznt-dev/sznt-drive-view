@@ -58,7 +58,7 @@ Run gcc @("-c", "$noman\empty.c", "-o", "$noman\default-manifest.o")
 
 $langs = @("EN", "PT", "ES", "DE")
 $editions = @(
-    @{ n = 0; exe = "SZNT-Setup"; mods = @("drive", "view") },
+    @{ n = 0; exe = "SZNT-Drive-View-Setup"; mods = @("drive", "view") },
     @{ n = 1; exe = "SZNT-Drive-Setup"; mods = @("drive") },
     @{ n = 2; exe = "SZNT-View-Setup"; mods = @("view") }
 )
@@ -88,7 +88,7 @@ foreach ($e in $editions) {
     Run g++ @("-B$($noman.Replace('\', '/'))/", "-O2", "-std=c++17", "-static", "-static-libgcc", "-static-libstdc++", "-s", "-Wall", "-Wextra",
               "-Wl,--no-insert-timestamp", "-municode", "-mwindows", "-DSZNT_EDITION=$($e.n)", "-I$src\common", "-I$src\setup", "-I$ed",
               "-o", "$ed\$($e.exe).exe", "$src\setup\setup.cpp", "$ed\setup.res.o", "$ed\payload.res.o",
-              "-ld2d1", "-ldwrite", "-ldwmapi", "-lole32", "-luuid", "-lshell32", "-lbcrypt", "-lwinhttp", "-lversion", "-ladvapi32", "-luser32")
+              "-ld2d1", "-ldwrite", "-ldwmapi", "-lole32", "-luuid", "-lshell32", "-lbcrypt", "-lwinhttp", "-lversion", "-ladvapi32", "-luser32", "-lwindowscodecs")
 }
 
 Write-Host "[dist]" -ForegroundColor Yellow

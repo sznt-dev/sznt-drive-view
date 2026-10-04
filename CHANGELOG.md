@@ -9,7 +9,9 @@
   - in a typical turn the head now moves about half as much relative to the cab.
 
 ### Installer
-- New look, matching mods.sznt.dev (same fonts, colors, logo and illustrations).
+- New look, matching mods.sznt.dev: same fonts, colors and logo, light and dark theme following Windows.
+- Short in-game clips of each mod instead of drawings.
+- The installer with both mods is now `SZNT-Drive-View-Setup.exe`.
 - Shorter, plainer wording in all four languages.
 
 ## 1.0.0-beta.1

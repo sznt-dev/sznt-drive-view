@@ -29,8 +29,8 @@
 // 0 = Drive + View, 1 = Drive only, 2 = View only
 static const bool HAS_DRIVE = SZNT_EDITION != 2;
 static const bool HAS_VIEW = SZNT_EDITION != 1;
-static const wchar_t *const EDITION_NAME = SZNT_EDITION == 1 ? L"SZNT Drive" : SZNT_EDITION == 2 ? L"SZNT View" : L"SZNT Drive & View";
-static const wchar_t *const EDITION_EXE = SZNT_EDITION == 1 ? L"SZNT-Drive-Setup.exe" : SZNT_EDITION == 2 ? L"SZNT-View-Setup.exe" : L"SZNT-Setup.exe";
+static const wchar_t *const EDITION_NAME = SZNT_EDITION == 1 ? L"SZNT Drive" : SZNT_EDITION == 2 ? L"SZNT View" : L"SZNT Drive + View";
+static const wchar_t *const EDITION_EXE = SZNT_EDITION == 1 ? L"SZNT-Drive-Setup.exe" : SZNT_EDITION == 2 ? L"SZNT-View-Setup.exe" : L"SZNT-Drive-View-Setup.exe";
 
 enum NoteKind { NOTE_INFO, NOTE_OK, NOTE_WARN, NOTE_ERROR, NOTE_HEADER };
 typedef void (*NoteFn)(NoteKind, const std::wstring &);
@@ -321,7 +321,7 @@ inline void register_mod(bool drive)
     reg_set(k, L"DisplayIcon", app_exe());
     reg_set(k, L"InstallLocation", app_dir());
     reg_set(k, L"UninstallString", L"\"" + app_exe() + L"\" --uninstall " + (drive ? L"--only-drive" : L"--only-view"));
-    reg_set(k, L"URLInfoAbout", widen(drive ? SZNT_URL_DRIVE : SZNT_URL_VIEW));
+    reg_set(k, L"URLInfoAbout", widen(SZNT_URL_HOME));
     reg_set(k, L"HelpLink", widen(SZNT_REPO_URL));
     const DWORD one = 1, size_kb = 1600;
     RegSetValueExW(k, L"NoModify", 0, REG_DWORD, (const BYTE *)&one, sizeof(one));
@@ -361,9 +361,9 @@ inline void unregister_app(bool drive, bool view)
     if (drive) RegDeleteKeyW(HKEY_CURRENT_USER, uninstall_key(true).c_str());
     if (view) RegDeleteKeyW(HKEY_CURRENT_USER, uninstall_key(false).c_str());
     if (mod_registered(true) || mod_registered(false)) return;
-    for (const wchar_t *n : {L"SZNT Drive & View", L"SZNT Drive", L"SZNT View"})
+    for (const wchar_t *n : {L"SZNT Drive + View", L"SZNT Drive & View", L"SZNT Drive", L"SZNT View"})
         DeleteFileW((known_folder(FOLDERID_Programs) + L"\\" + n + L".lnk").c_str());
-    for (const wchar_t *e : {L"SZNT-Setup.exe", L"SZNT-Drive-Setup.exe", L"SZNT-View-Setup.exe"}) {
+    for (const wchar_t *e : {L"SZNT-Drive-View-Setup.exe", L"SZNT-Setup.exe", L"SZNT-Drive-Setup.exe", L"SZNT-View-Setup.exe"}) {
         const std::wstring p = app_dir() + L"\\" + e;
         if (!DeleteFileW(p.c_str())) MoveFileExW(p.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
     }
@@ -565,9 +565,6 @@ inline std::wstring newer_version()
     return !tag.empty() && compare_versions(SZNT_VERSION, tag) < 0 ? widen(tag) : L"";
 }
 
-inline const char *download_page()
-{
-    return SZNT_EDITION == 1 ? SZNT_URL_DRIVE : SZNT_EDITION == 2 ? SZNT_URL_VIEW : SZNT_URL_HOME;
-}
+inline const char *download_page() { return SZNT_URL_HOME; }
 
 }

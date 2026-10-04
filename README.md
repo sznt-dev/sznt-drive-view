@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/img/banner.png" alt="SZNT Drive + View" width="100%">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/banner-dark.png"><img src="docs/img/banner-light.png" alt="SZNT Drive + View" width="100%"></picture>
 </p>
 
 <p align="center">
@@ -55,23 +55,21 @@ The two mods are independent: install one, the other, or both. Euro Truck Simula
 ## ⬇ Download
 
 <p>
-  <a href="https://mods.sznt.dev/ets2-ats2-drive"><img alt="Get SZNT Drive" src="https://img.shields.io/badge/Get-SZNT_Drive-FF4D00?style=for-the-badge&labelColor=111214"></a>
-  &nbsp;
-  <a href="https://mods.sznt.dev/ets2-ats2-view"><img alt="Get SZNT View" src="https://img.shields.io/badge/Get-SZNT_View-2B59FF?style=for-the-badge&labelColor=111214"></a>
+  <a href="https://mods.sznt.dev"><img alt="Get SZNT Drive + View" src="https://img.shields.io/badge/Get-SZNT_Drive_+_View-FF4D00?style=for-the-badge&labelColor=111214"></a>
 </p>
 
-Both are **free**. Downloads live on [mods.sznt.dev](https://mods.sznt.dev), where you can also grab both mods in a single installer and get an email when a new version is out. This repository holds the complete source code, so you can see exactly what you are installing.
+Both are **free**. Downloads live on [mods.sznt.dev](https://mods.sznt.dev): one installer with both mods (untick either one if you only want one), and an email when a new version is out. This repository holds the complete source code, so you can see exactly what you are installing.
 
 **Installing takes about a minute:** close the game, run the installer, pick your language, the mods and your games, click *Install*. That's it.
 
 <table>
   <tr>
-    <td><img src="docs/img/installer-language.png" alt="Choose your language"></td>
-    <td><img src="docs/img/installer-mods.png" alt="Choose the mods"></td>
+    <td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/installer-language-dark.png"><img src="docs/img/installer-language-light.png" alt="Choose your language"></picture></td>
+    <td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/installer-mods-dark.png"><img src="docs/img/installer-mods-light.png" alt="Choose the mods"></picture></td>
   </tr>
   <tr>
-    <td><img src="docs/img/installer-drive.png" alt="SZNT Drive installer"></td>
-    <td><img src="docs/img/installer-done.png" alt="All set"></td>
+    <td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/installer-drive-dark.png"><img src="docs/img/installer-drive-light.png" alt="SZNT Drive installer"></picture></td>
+    <td><picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/installer-done-dark.png"><img src="docs/img/installer-done-light.png" alt="All set"></picture></td>
   </tr>
 </table>
 
@@ -114,7 +112,7 @@ The installer:
 
 The plugin adds up the tractor, every coupled trailer and the cargo mass the game reports for your job. The tuning you feel with a heavy load is the reference; everything scales from there.
 
-<p align="center"><img src="docs/img/weight.png" alt="Throttle time by load" width="760"></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/img/weight-dark.png"><img src="docs/img/weight-light.png" alt="Throttle time by load" width="760"></picture></p>
 
 | Rig | Throttle to 100% | Steering speed | Brake to 100% |
 |---|:---:|:---:|:---:|
@@ -221,7 +219,7 @@ Short answer: it's a small, open-source program that does one job, and you can c
 - **Integrity:** the installer verifies the SHA-256 of every file it carries before installing it. Each release publishes the SHA-256 of every download, and you can check yours in PowerShell:
 
   ```powershell
-  Get-FileHash .\SZNT-Setup-v1.0.0-beta.2.exe -Algorithm SHA256
+  Get-FileHash .\SZNT-Drive-View-Setup-v1.0.0-beta.2.exe -Algorithm SHA256
   ```
 
 Some antivirus engines flag *any* new, unsigned program that reads input; that's a heuristic, not a detection. If you'd rather not trust a binary at all, [build it yourself](#-build-it-yourself): it takes a couple of minutes. See [SECURITY.md](SECURITY.md) for the full details and how to report a problem.

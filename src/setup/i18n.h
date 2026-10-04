@@ -25,30 +25,32 @@ static const Str step_mods = {{L"Mods", L"Mods", L"Mods", L"Mods"}};
 static const Str step_games = {{L"Games", L"Jogos", L"Juegos", L"Spiele"}};
 static const Str step_install = {{L"Install", L"Instalar", L"Instalar", L"Installieren"}};
 
-static const Str mods_title = {{L"What to install", L"O que instalar", L"Qué instalar", L"Was installieren"}};
-static const Str mods_sub = {{L"Each one works on its own or together.", L"Os dois funcionam sozinhos ou juntos.",
-                              L"Funcionan por separado o juntos.", L"Beide laufen einzeln oder zusammen."}};
+static const Str mods_title = {{L"Two plugins in a single installer", L"São dois plugins num instalador só",
+                                L"Dos plugins en un solo instalador", L"Zwei Plugins in einem Installer"}};
+static const Str mods_sub = {{L"You can run both together, which is how they were designed, or untick either one.",
+                              L"Dá para usar os dois juntos, que é como eles foram pensados, ou desmarcar um deles.",
+                              L"Puedes usar los dos juntos, que es como se pensaron, o desmarcar uno.",
+                              L"Du kannst beide zusammen nutzen, so sind sie gedacht, oder eins abwählen."}};
 
-static const Str drive_tag = {{L"Analog steering, throttle and brake on the keyboard.", L"Direção, acelerador e freio analógicos no teclado.",
-                               L"Dirección, acelerador y freno analógicos en el teclado.", L"Analoge Lenkung, Gas und Bremse auf der Tastatur."}};
-static const Str view_tag = {{L"Virtual head tracking with your mouse.", L"Head tracker virtual, só com o mouse.",
-                              L"Head tracking virtual con el ratón.", L"Virtuelles Head-Tracking mit der Maus."}};
+static const Str drive_tag = {{L"Steering, throttle and brakes on the keyboard", L"Volante, acelerador e freio no teclado",
+                               L"Volante, acelerador y freno en el teclado", L"Lenkung, Gas und Bremse auf der Tastatur"}};
+static const Str view_tag = {{L"A cab camera that moves like a head", L"A câmera da cabine se mexendo como uma cabeça",
+                              L"La cámara de la cabina moviéndose como una cabeza", L"Eine Kabinenkamera, die sich wie ein Kopf bewegt"}};
 
 static const Str drive_f[4] = {
     {{L"Weighted steering", L"Volante com peso", L"Volante con peso", L"Lenkung mit Gewicht"}},
-    {{L"Progressive pedals", L"Pedais progressivos", L"Pedales progresivos", L"Progressive Pedale"}},
+    {{L"Progressive throttle and brakes", L"Acelerador e freio progressivos", L"Acelerador y freno progresivos", L"Progressives Gas und Bremse"}},
     {{L"Cargo weight", L"Peso da carga", L"Peso de la carga", L"Ladungsgewicht"}},
-    {{L"Grip by surface", L"Aderência por piso", L"Agarre según el suelo", L"Grip je Untergrund"}},
+    {{L"Surface grip", L"Aderência do piso", L"Agarre del suelo", L"Grip des Untergrunds"}},
 };
 static const Str view_f[4] = {
-    {{L"Mouse with weight", L"Mouse com peso e inércia", L"Ratón con peso e inercia", L"Maus mit Trägheit"}},
+    {{L"Look with weight and inertia", L"Olhar com peso e inércia", L"Mirar con peso e inercia", L"Blick mit Gewicht und Trägheit"}},
     {{L"Head zoom", L"Zoom de cabeça", L"Zoom de cabeza", L"Kopf-Zoom"}},
-    {{L"Steady gaze", L"Olhar estabilizado", L"Mirada estable", L"Ruhiger Blick"}},
+    {{L"Steadier horizon", L"Horizonte estabilizado", L"Horizonte estable", L"Ruhiger Horizont"}},
     {{L"Body inertia", L"Inércia do corpo", L"Inercia del cuerpo", L"Körperträgheit"}},
 };
 
 static const Str also = {{L"There's also", L"Tem também o", L"También está", L"Es gibt auch"}};
-
 static const Str games_title = {{L"Where to install", L"Onde instalar", L"Dónde instalar", L"Wo installieren"}};
 static const Str games_sub = {{L"Close the game before you continue.", L"Feche o jogo antes de continuar.",
                                L"Cierra el juego antes de seguir.", L"Schließ das Spiel, bevor du weitermachst."}};
@@ -79,10 +81,10 @@ static const Str btn_retry_admin = {{L"Try as administrator", L"Tentar como admi
 static const Str installing = {{L"Installing", L"Instalando", L"Instalando", L"Installiere"}};
 static const Str removing = {{L"Removing", L"Removendo", L"Eliminando", L"Entferne"}};
 static const Str done_title = {{L"Done.", L"Pronto.", L"Listo.", L"Fertig."}};
-static const Str done_sub = {{L"Open the game. It will say a plugin is installed: just click OK.",
-                              L"Abra o jogo. Ele vai avisar que tem plugin instalado: é só clicar em OK.",
-                              L"Abre el juego. Avisará de que hay un plugin instalado: haz clic en Aceptar.",
-                              L"Starte das Spiel. Es meldet ein installiertes Plugin: einfach auf OK klicken."}};
+static const Str done_sub = {{L"Start the game and click OK. You'll see a notice about advanced SDK features, which is normal for any plugin.",
+                              L"Abra o jogo e clique em OK. Vai aparecer um aviso sobre recursos avançados do SDK, que é normal para qualquer plugin.",
+                              L"Abre el juego y haz clic en Aceptar. Verás un aviso sobre funciones avanzadas del SDK, que es normal en cualquier plugin.",
+                              L"Starte das Spiel und klick auf OK. Du siehst einen Hinweis zu erweiterten SDK-Funktionen, das ist bei jedem Plugin normal."}};
 static const Str done_warn_title = {{L"Finished with warnings", L"Terminou com avisos", L"Terminó con avisos", L"Mit Hinweisen fertig"}};
 static const Str removed_title = {{L"Uninstalled.", L"Desinstalado.", L"Desinstalado.", L"Deinstalliert."}};
 static const Str removed_sub = {{L"Your controls are back to normal. Your settings are saved in case you come back.",
@@ -93,21 +95,22 @@ static const Str admin_needed = {{L"Windows blocked the game folder", L"O Window
                                   L"Windows bloqueó la carpeta del juego", L"Windows hat den Spielordner gesperrt"}};
 
 static const Str controls_title = {{L"Controls", L"Comandos", L"Controles", L"Steuerung"}};
+static const Str controls_head = {{L"Nothing new to learn", L"Você não precisa reaprender nada", L"No hay nada nuevo que aprender", L"Nichts Neues zu lernen"}};
 static const Str ctl_steer = {{L"Steering", L"Volante", L"Volante", L"Lenkung"}};
-static const Str ctl_steer_d = {{L"Tap = small correction · hold = turn", L"Toque = correção fina · segurar = curva",
-                                 L"Toque = corrección fina · mantener = curva", L"Tippen = kleine Korrektur · halten = Kurve"}};
+static const Str ctl_steer_d = {{L"tap to correct, hold to turn", L"toque corrige, segurar faz a curva",
+                                 L"un toque corrige, mantener hace la curva", L"tippen korrigiert, halten lenkt ein"}};
 static const Str ctl_thr = {{L"Throttle", L"Acelerador", L"Acelerador", L"Gas"}};
-static const Str ctl_thr_d = {{L"Progressive · double tap = floor it", L"Progressivo · toque duplo = pé fundo",
-                               L"Progresivo · doble toque = a fondo", L"Progressiv · doppelt tippen = Vollgas"}};
+static const Str ctl_thr_d = {{L"progressive, double tap to floor it", L"progressivo, e dois toques afundam o pé",
+                               L"progresivo, doble toque para pisar a fondo", L"progressiv, doppelt tippen für Vollgas"}};
 static const Str ctl_brk = {{L"Brake", L"Freio", L"Freno", L"Bremse"}};
-static const Str ctl_brk_d = {{L"Progressive · double tap = emergency", L"Progressivo · toque duplo = emergência",
-                               L"Progresivo · doble toque = emergencia", L"Progressiv · doppelt tippen = Notbremse"}};
+static const Str ctl_brk_d = {{L"progressive, double tap to brake hard", L"progressivo, e dois toques freiam forte",
+                               L"progresivo, doble toque para frenar fuerte", L"progressiv, doppelt tippen für Vollbremsung"}};
 static const Str ctl_look = {{L"Look", L"Olhar", L"Mirar", L"Umsehen"}};
-static const Str ctl_look_d = {{L"With weight and inertia, interior camera only", L"Com peso e inércia, só na câmera interna",
-                                L"Con peso e inercia, solo en la cámara interior", L"Mit Gewicht und Trägheit, nur in der Innenkamera"}};
+static const Str ctl_look_d = {{L"with weight and inertia, interior camera only", L"com peso e inércia, só na câmera interna",
+                                L"con peso e inercia, solo en la cámara interior", L"mit Gewicht und Trägheit, nur in der Innenkamera"}};
 static const Str ctl_middle = {{L"Middle button", L"Botão do meio", L"Botón central", L"Mittlere Taste"}};
 static const Str ctl_zoom = {{L"Head zoom", L"Zoom de cabeça", L"Zoom de cabeza", L"Kopf-Zoom"}};
-static const Str ctl_zoom_d = {{L"Hold to lean in", L"Segure para se inclinar", L"Mantén para inclinarte", L"Halten zum Vorbeugen"}};
+static const Str ctl_zoom_d = {{L"your body leans where you look", L"o corpo vai na direção do olhar", L"el cuerpo se inclina hacia donde miras", L"der Körper beugt sich in Blickrichtung"}};
 static const Str ctl_ini = {{L"Fine-tune everything in sznt-drive.ini and sznt-view.ini, in the game's plugins folder.",
                              L"Ajustes finos em sznt-drive.ini e sznt-view.ini, na pasta plugins do jogo.",
                              L"Ajustes finos en sznt-drive.ini y sznt-view.ini, en la carpeta plugins del juego.",

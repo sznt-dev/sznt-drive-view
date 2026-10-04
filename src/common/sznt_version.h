@@ -11,5 +11,3 @@
 #define SZNT_REPO_URL      "https://github.com/sznt-dev/sznt-drive-view"
 #define SZNT_RELEASES_API  "https://api.github.com/repos/sznt-dev/sznt-drive-view/releases/latest"
 #define SZNT_URL_HOME      "https://mods.sznt.dev"
-#define SZNT_URL_DRIVE     "https://mods.sznt.dev/ets2-ats2-drive"
-#define SZNT_URL_VIEW      "https://mods.sznt.dev/ets2-ats2-view"

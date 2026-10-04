@@ -8,9 +8,9 @@
 #define SZNT_ORIGINAL  "SZNT-View-Setup.exe"
 #define SZNT_PRODUCT   "SZNT View"
 #else
-#define SZNT_FILE_DESC "SZNT Setup - install, update and remove SZNT Drive and SZNT View"
-#define SZNT_ORIGINAL  "SZNT-Setup.exe"
-#define SZNT_PRODUCT   "SZNT Drive & View"
+#define SZNT_FILE_DESC "SZNT Drive + View Setup - install, update and remove SZNT Drive and SZNT View"
+#define SZNT_ORIGINAL  "SZNT-Drive-View-Setup.exe"
+#define SZNT_PRODUCT   "SZNT Drive + View"
 #endif
 #define SZNT_INTERNAL  "sznt-setup"
 #define SZNT_FILETYPE  VFT_APP
@@ -19,10 +19,17 @@
 1 24 "setup.manifest"
 IDI_APP ICON "sznt.ico"
 
-301 RCDATA "fonts/SZNTWide-Black.ttf"
-302 RCDATA "fonts/SZNTDisplay-ExtraBold.ttf"
+301 RCDATA "fonts/SZNTWide-Regular.ttf"
+302 RCDATA "fonts/SZNTDisplay-Regular.ttf"
 303 RCDATA "fonts/SZNTSans-Regular.ttf"
 304 RCDATA "fonts/SZNTSans-Medium.ttf"
 305 RCDATA "fonts/SZNTSans-SemiBold.ttf"
 306 RCDATA "fonts/SZNTMono-Medium.ttf"
 307 RCDATA "fonts/SZNTMono-SemiBold.ttf"
+
+#if SZNT_EDITION != 2
+401 RCDATA "clips/drive.clip"
+#endif
+#if SZNT_EDITION != 1
+402 RCDATA "clips/view.clip"
+#endif

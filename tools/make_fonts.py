@@ -12,8 +12,8 @@ OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "set
 
 # (source index, family, style, axes, weight class)
 INSTANCES = [
-    (0, "SZNT Wide", "Black", {"wdth": 125, "wght": 900}, 900),
-    (0, "SZNT Display", "ExtraBold", {"wdth": 112, "wght": 800}, 800),
+    (0, "SZNT Wide", "Regular", {"wdth": 125, "wght": 400}, 400),
+    (0, "SZNT Display", "Regular", {"wdth": 100, "wght": 420}, 400),
     (1, "SZNT Sans", "Regular", {"wght": 400}, 400),
     (1, "SZNT Sans", "Medium", {"wght": 500}, 500),
     (1, "SZNT Sans", "SemiBold", {"wght": 600}, 600),

@@ -12,3 +12,5 @@
 #define IDI_APP          201
 #define IDR_FONT_FIRST   301
 #define IDR_FONT_COUNT   7
+#define IDR_CLIP_DRIVE   401
+#define IDR_CLIP_VIEW    402
